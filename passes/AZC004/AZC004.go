@@ -5,8 +5,8 @@ import (
 	"go/token"
 	"strings"
 
-	"golang.org/x/tools/go/analysis"
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
+	"golang.org/x/tools/go/analysis"
 )
 
 const Doc = `check MaxItems:1 blocks with single property should be flattened
@@ -181,15 +181,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if propertyCount == 1 {
 					hasComment := false
 					elemLine := pass.Fset.Position(elemValue.Pos()).Line
-					fieldStartLine := pass.Fset.Position(kv.Pos()).Line
 
-					// Look for any comments between field start and Elem or within a few lines after Elem
+					// Look for inline comments on the same line as Elem
 					for _, cg := range f.Comments {
 						for _, c := range cg.List {
 							commentLine := pass.Fset.Position(c.Pos()).Line
 
-							// Check if comment is between field start and Elem or within a few lines after Elem
-							if commentLine >= fieldStartLine && commentLine <= elemLine+2 {
+							// Check if comment is on the same line as Elem (inline comment)
+							if commentLine == elemLine {
 								hasComment = true
 								break
 							}

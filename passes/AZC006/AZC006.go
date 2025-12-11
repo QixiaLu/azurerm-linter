@@ -100,7 +100,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 			idFields = idFieldsCached
 		}
-		// For helper files, idFields will remain empty []
 
 		ast.Inspect(f, func(n ast.Node) bool {
 			// Look for composite literals that might be schema maps
@@ -148,13 +147,34 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// For schemas that don't check ID/location, use empty ID fields list
 			var effectiveIDFields []string
 			if shouldCheckIDAndLocation {
-				// Top-level schemas in resource/data source files: use extracted ID fields
-				// TODO: Support complex ID patterns like:
-				//   baseId := NewAppServiceID(subscriptionId, webApp.ResourceGroup, webApp.Name)
-				//   id, err := ParseWebAppID(baseId.ID())
-				//   metadata.SetID(id)
 				if len(idFields) == 0 {
-					// Skip - unable to extract ID fields
+					// Skip - unable to extract ID fields from SetID call
+					//
+					// This can happen in cases where the ID is constructed from API responses
+					// rather than directly from schema fields. For example:
+					//
+					//   name := d.Get("name").(string)
+					//   storageAccount, err := parse.ParseOptionallyVersionedNestedItemID(d.Get("managed_storage_account_id").(string))
+					//   ...
+					//   keyVaultIdRaw, err := keyVaultsClient.KeyVaultIDFromBaseUrl(ctx, subscriptionResourceId, storageAccount.KeyVaultBaseUrl)
+					//   ...
+					//   keyVaultBaseUri, err := keyVaultsClient.BaseUriForKeyVault(ctx, *keyVaultId)
+					//   ...
+					//   read, err := client.GetSasDefinition(ctx, baseUri, storageAccount.Name, name)
+					//   sasId, err := parse.SasDefinitionID(*read.ID)
+					//   d.SetId(sasId.ID())
+					//
+					// In this pattern, the ID comes from the API response (*read.ID), not from
+					// a New*ID() constructor. To support this, we would need to:
+					//   1. Trace sasId back to the Parse*ID call
+					//   2. Trace *read.ID back to the API call (client.GetSasDefinition)
+					//   3. Analyze each API call parameter to find schema fields
+					//   4. Handle multiple levels of variable references and transformations
+					//
+					// This adds significant complexity for a relatively rare pattern. Most resources
+					// use the standard New*ID() pattern which is already supported.
+					//
+					// For these cases, manual review is recommended to ensure proper field ordering.
 					fmt.Printf("[%s] Skipping %s: unable to extract ID fields from SetID call\n", analyzerName, filename)
 					return true
 				}
