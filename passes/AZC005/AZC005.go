@@ -25,6 +25,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for _, f := range pass.Files {
 		filename := pass.Fset.File(f.Pos()).Name()
 
+		if !changedlines.IsFileChanged(filename) {
+			continue
+		}
+
 		if strings.HasSuffix(filename, "_test.go") {
 			continue
 		}

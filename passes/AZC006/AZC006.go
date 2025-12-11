@@ -68,6 +68,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for _, f := range pass.Files {
 		filename := pass.Fset.Position(f.Pos()).Filename
 
+		if !changedlines.IsFileChanged(filename) {
+			continue
+		}
+
 		for _, skip := range skipFileSuffix {
 			if strings.HasSuffix(filename, skip) {
 				continue

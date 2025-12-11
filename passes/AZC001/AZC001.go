@@ -36,8 +36,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, f := range pass.Files {
-		filePos := pass.Fset.Position(f.Pos())
-		filename := filePos.Filename
+		filename := pass.Fset.Position(f.Pos()).Filename
+
+		// Skip files not in changed files list
+		if !changedlines.IsFileChanged(filename) {
+			continue
+		}
 
 		// Skip test files
 		if strings.HasSuffix(filename, "_test.go") {

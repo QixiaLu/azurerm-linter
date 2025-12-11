@@ -19,6 +19,7 @@ var (
 	mu               sync.RWMutex
 	changedLines     map[string]map[int]bool // file -> line numbers
 	changedFilesOnly map[string]bool         // files without specific lines
+	changedFiles     map[string]bool         // all changed files (union of changedLines and changedFilesOnly)
 	initialized      bool
 )
 
@@ -29,6 +30,7 @@ func Initialize() error {
 
 	changedLines = make(map[string]map[int]bool)
 	changedFilesOnly = make(map[string]bool)
+	changedFiles = make(map[string]bool)
 
 	// If no git diff specified, disable filtering (check everything)
 	if gitDiffFile == nil || *gitDiffFile == "" {
@@ -125,6 +127,9 @@ func parseGitDiff(reader io.Reader) error {
 				for i := 0; i < count; i++ {
 					changedLines[currentFile][startLine+i] = true
 				}
+
+				// Add to changed files list
+				changedFiles[currentFile] = true
 			}
 		}
 	}
@@ -172,6 +177,26 @@ func ShouldReport(filename string, line int) bool {
 	return false
 }
 
+// IsFileChanged returns true if the given file is in the changed files list
+func IsFileChanged(filename string) bool {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if !initialized || len(changedFiles) == 0 {
+		return true
+	}
+
+	// Normalize the filename path and extract relative path
+	normalizedFilename := filepath.ToSlash(filename)
+	idx := strings.Index(normalizedFilename, "internal/services/")
+	if idx < 0 {
+		return true
+	}
+	relPath := normalizedFilename[idx:]
+
+	return changedFiles[relPath]
+}
+
 // IsEnabled returns true if the changed lines filter is active
 func IsEnabled() bool {
 	mu.RLock()
@@ -185,6 +210,7 @@ func Reset() {
 	defer mu.Unlock()
 	changedLines = nil
 	changedFilesOnly = nil
+	changedFiles = nil
 	initialized = false
 }
 
@@ -193,7 +219,7 @@ func GetStats() (filesCount int, totalLines int) {
 	mu.RLock()
 	defer mu.RUnlock()
 
-	filesCount = len(changedLines) + len(changedFilesOnly)
+	filesCount = len(changedFiles)
 	for _, lines := range changedLines {
 		totalLines += len(lines)
 	}
