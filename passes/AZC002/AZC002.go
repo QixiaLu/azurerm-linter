@@ -2,10 +2,10 @@ package AZC002
 
 import (
 	"go/ast"
-	"go/token"
 	"strings"
 
-	"github.com/bflad/tfproviderlint/passes/commentignore"
+	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
+	"github.com/qixialu/azurerm-linter/passes/changedlines"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -38,37 +38,25 @@ const analyzerName = "AZC002"
 var Analyzer = &analysis.Analyzer{
 	Name: analyzerName,
 	Doc:  Doc,
-	Requires: []*analysis.Analyzer{
-		commentignore.Analyzer,
-	},
-	Run: run,
+	Run:  run,
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	ignorer := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	// Skip migration packages
+	if strings.Contains(pass.Pkg.Path(), "/migration") {
+		return nil, nil
+	}
 
 	for _, f := range pass.Files {
-		filePos := pass.Fset.Position(f.Pos())
-		filename := filePos.Filename
-
-		// Only check resource and data source files
-		if !strings.HasSuffix(filename, "_resource.go") && !strings.HasSuffix(filename, "_data_source.go") {
-			continue
-		}
-
-		// Skip test files
+		filename := pass.Fset.Position(f.Pos()).Filename
 		if strings.HasSuffix(filename, "_test.go") {
 			continue
 		}
 
 		ast.Inspect(f, func(n ast.Node) bool {
-			// Look for composite literals that might be schema definitions
+			// Look for composite literals that might be schema maps
 			comp, ok := n.(*ast.CompositeLit)
 			if !ok {
-				return true
-			}
-
-			if ignorer.ShouldIgnore(analyzerName, comp) {
 				return true
 			}
 
@@ -94,79 +82,45 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 
+			// Iterate through each schema field
 			for _, elt := range comp.Elts {
 				kv, ok := elt.(*ast.KeyValueExpr)
 				if !ok {
 					continue
 				}
 
+				// Get field name
 				key, ok := kv.Key.(*ast.BasicLit)
-				if !ok || key.Kind != token.STRING {
+				if !ok {
 					continue
 				}
-
 				propertyName := strings.Trim(key.Value, `"`)
 
-				// Check if the value is a composite literal (schema definition)
+				// Check if the value is a schema composite literal
 				schemaLit, ok := kv.Value.(*ast.CompositeLit)
 				if !ok {
-					// TODO: Might need to include schema which defined in another file
 					continue
 				}
 
-				// Analyze the schema definition
-				isTypeString := false
-				hasValidation := false
-				isComputedOnly := false
-				hasOptional := false
-
-				for _, field := range schemaLit.Elts {
-					kvField, ok := field.(*ast.KeyValueExpr)
-					if !ok {
-						continue
-					}
-
-					fieldName, ok := kvField.Key.(*ast.Ident)
-					if !ok {
-						continue
-					}
-
-					switch fieldName.Name {
-					case "Type":
-						// Check if Type is TypeString
-						if sel, ok := kvField.Value.(*ast.SelectorExpr); ok {
-							if sel.Sel.Name == "TypeString" {
-								isTypeString = true
-							}
-						}
-					case "ValidateFunc":
-						hasValidation = true
-					case "Computed":
-						// Check if Computed is true
-						if ident, ok := kvField.Value.(*ast.Ident); ok && ident.Name == "true" {
-							isComputedOnly = true
-						}
-					case "Optional":
-						// Check if Optional is true
-						if ident, ok := kvField.Value.(*ast.Ident); ok && ident.Name == "true" {
-							hasOptional = true
-						}
-					}
+				// Use tfproviderlint's SchemaInfo to analyze the schema
+				schemaInfo := schema.NewSchemaInfo(schemaLit, pass.TypesInfo)
+				if !schemaInfo.IsType(schema.SchemaValueTypeString) {
+					continue
 				}
-
-				// Only check TypeString fields
-				if !isTypeString {
+				// Skip if it's computed-only (no Required or Optional)
+				if schemaInfo.Schema.Computed && !schemaInfo.Schema.Required && !schemaInfo.Schema.Optional {
 					continue
 				}
 
-				// Skip if it's computed-only (Computed: true without Optional or Required)
-				if isComputedOnly && !hasOptional {
-					continue
-				}
+				// Check if validation exists (ValidateFunc)
+				hasValidation := schemaInfo.DeclaresField(schema.SchemaFieldValidateFunc)
 
 				// Report if no validation
 				if !hasValidation {
-					pass.Reportf(kv.Pos(), "%s: string argument %q must have ValidateFunc", analyzerName, propertyName)
+					pos := pass.Fset.Position(kv.Pos())
+					if changedlines.ShouldReport(pos.Filename, pos.Line) {
+						pass.Reportf(kv.Pos(), "%s: string argument %q must have ValidateFunc", analyzerName, propertyName)
+					}
 				}
 			}
 

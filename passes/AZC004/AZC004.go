@@ -5,8 +5,8 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"golang.org/x/tools/go/analysis"
+	"github.com/qixialu/azurerm-linter/passes/changedlines"
 )
 
 const Doc = `check MaxItems:1 blocks with single property should be flattened
@@ -45,30 +45,26 @@ const analyzerName = "AZC004"
 var Analyzer = &analysis.Analyzer{
 	Name: analyzerName,
 	Doc:  Doc,
-	Requires: []*analysis.Analyzer{
-		commentignore.Analyzer,
-	},
-	Run: run,
+	Run:  run,
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	ignorer := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	// Skip migration packages
+	if strings.Contains(pass.Pkg.Path(), "/migration") {
+		return nil, nil
+	}
 
 	for _, f := range pass.Files {
 		filePos := pass.Fset.Position(f.Pos())
 		filename := filePos.Filename
 
-		// Only check resource and data source files
-		if !strings.HasSuffix(filename, "_resource.go") && !strings.HasSuffix(filename, "_data_source.go") {
-			continue
-		}
 		if strings.HasSuffix(filename, "_test.go") {
 			continue
 		}
 
 		ast.Inspect(f, func(n ast.Node) bool {
 			comp, ok := n.(*ast.CompositeLit)
-			if !ok || ignorer.ShouldIgnore(analyzerName, comp) {
+			if !ok {
 				return true
 			}
 
@@ -201,7 +197,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					}
 
 					if !hasComment {
-						pass.Reportf(kv.Pos(), "%s: field %q has MaxItems: 1 with only one nested property - consider flattening or add inline comment explaining why (e.g., '// Additional properties will be added per service team confirmation')", analyzerName, fieldName)
+						pos := pass.Fset.Position(kv.Pos())
+						// Only report if this line is in the changed lines (or filter is disabled)
+						if changedlines.ShouldReport(pos.Filename, pos.Line) {
+							pass.Reportf(kv.Pos(), "%s: field %q has MaxItems: 1 with only one nested property - consider flattening or add inline comment explaining why (e.g., '// Additional properties will be added per service team confirmation')", analyzerName, fieldName)
+						}
 					}
 				}
 			}

@@ -5,7 +5,8 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/bflad/tfproviderlint/passes/commentignore"
+	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
+	"github.com/qixialu/azurerm-linter/passes/changedlines"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -35,45 +36,45 @@ const analyzerName = "AZC003"
 var Analyzer = &analysis.Analyzer{
 	Name: analyzerName,
 	Doc:  Doc,
-	Requires: []*analysis.Analyzer{
-		commentignore.Analyzer,
-	},
-	Run: run,
+	Run:  run,
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	ignorer := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	// Skip migration packages
+	if strings.Contains(pass.Pkg.Path(), "/migration") {
+		return nil, nil
+	}
 
 	for _, f := range pass.Files {
-		filePos := pass.Fset.Position(f.Pos())
-		filename := filePos.Filename
+		filename := pass.Fset.Position(f.Pos()).Filename
 
-		// Only check resource and data source files
-		if !strings.HasSuffix(filename, "_resource.go") && !strings.HasSuffix(filename, "_data_source.go") {
-			continue
-		}
 		if strings.HasSuffix(filename, "_test.go") {
 			continue
 		}
 
 		ast.Inspect(f, func(n ast.Node) bool {
 			comp, ok := n.(*ast.CompositeLit)
-			if !ok || ignorer.ShouldIgnore(analyzerName, comp) {
+			if !ok {
 				return true
 			}
 
-			// Check if this is a map[string]*schema.Schema
+			// Check if it's a map literal (map[string]*schema.Schema or map[string]*pluginsdk.Schema)
 			mapType, ok := comp.Type.(*ast.MapType)
 			if !ok {
 				return true
 			}
+
+			// Check if key is string
 			if ident, ok := mapType.Key.(*ast.Ident); !ok || ident.Name != "string" {
 				return true
 			}
+
+			// Check if value is *schema.Schema or *pluginsdk.Schema
 			starExpr, ok := mapType.Value.(*ast.StarExpr)
 			if !ok {
 				return true
 			}
+
 			selExpr, ok := starExpr.X.(*ast.SelectorExpr)
 			if !ok || selExpr.Sel.Name != "Schema" {
 				return true
@@ -98,43 +99,31 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				// Track Optional and Computed positions
-				var optionalPos token.Pos
-				var computedPos token.Pos
-				hasOptional := false
-				hasComputed := false
+				// Use tfproviderlint's SchemaInfo to analyze the schema
+				schemaInfo := schema.NewSchemaInfo(schemaLit, pass.TypesInfo)
 
-				for _, fld := range schemaLit.Elts {
-					fieldKV, ok := fld.(*ast.KeyValueExpr)
-					if !ok {
-						continue
-					}
-					ident, ok := fieldKV.Key.(*ast.Ident)
-					if !ok {
-						continue
-					}
-
-					switch ident.Name {
-					case "Optional":
-						if id, ok := fieldKV.Value.(*ast.Ident); ok && id.Name == "true" {
-							hasOptional = true
-							optionalPos = fieldKV.Pos()
-						}
-					case "Computed":
-						if id, ok := fieldKV.Value.(*ast.Ident); ok && id.Name == "true" {
-							hasComputed = true
-							computedPos = fieldKV.Pos()
-						}
-					}
-				}
-
-				if !hasOptional || !hasComputed {
+				// Only check fields that are both Optional and Computed
+				if !schemaInfo.Schema.Optional || !schemaInfo.Schema.Computed {
 					continue
 				}
 
+				// Get positions of Optional and Computed fields
+				optionalKV := schemaInfo.Fields[schema.SchemaFieldOptional]
+				computedKV := schemaInfo.Fields[schema.SchemaFieldComputed]
+
+				if optionalKV == nil || computedKV == nil {
+					continue
+				}
+
+				optionalPos := optionalKV.Pos()
+				computedPos := computedKV.Pos()
+
 				// Check order: Optional should come before Computed
 				if optionalPos > computedPos {
-					pass.Reportf(kv.Pos(), "%s: field %q has Optional and Computed in wrong order (Optional must come before Computed)", analyzerName, fieldName)
+					pos := pass.Fset.Position(kv.Pos())
+					if changedlines.ShouldReport(pos.Filename, pos.Line) {
+						pass.Reportf(kv.Pos(), "%s: field %q has Optional and Computed in wrong order (Optional must come before Computed)", analyzerName, fieldName)
+					}
 					continue
 				}
 
@@ -160,7 +149,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				}
 
 				if !hasOCComment {
-					pass.Reportf(kv.Pos(), "%s: field %q is Optional+Computed but missing required comment. Add '// NOTE: O+C - <explanation>' between Optional and Computed", analyzerName, fieldName)
+					pos := pass.Fset.Position(kv.Pos())
+					if changedlines.ShouldReport(pos.Filename, pos.Line) {
+						pass.Reportf(kv.Pos(), "%s: field %q is Optional+Computed but missing required comment. Add '// NOTE: O+C - <explanation>' between Optional and Computed", analyzerName, fieldName)
+					}
 				}
 			}
 

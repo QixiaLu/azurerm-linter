@@ -5,7 +5,7 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/bflad/tfproviderlint/passes/commentignore"
+	"github.com/qixialu/azurerm-linter/passes/changedlines"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -26,24 +26,18 @@ const analyzerName = "AZC001"
 var Analyzer = &analysis.Analyzer{
 	Name: analyzerName,
 	Doc:  Doc,
-	Requires: []*analysis.Analyzer{
-		commentignore.Analyzer,
-	},
-	Run: run,
+	Run:  run,
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	ignorer := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	// Skip migration packages
+	if strings.Contains(pass.Pkg.Path(), "/migration") {
+		return nil, nil
+	}
 
 	for _, f := range pass.Files {
 		filePos := pass.Fset.Position(f.Pos())
 		filename := filePos.Filename
-
-		// Only check resource and data source files 
-		// TODO: should be all files in services/, since some of those contain schema as well, e.g. helper.go
-		if !strings.HasSuffix(filename, "_resource.go") && !strings.HasSuffix(filename, "_data_source.go") {
-			continue
-		}
 
 		// Skip test files
 		if strings.HasSuffix(filename, "_test.go") {
@@ -53,11 +47,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
-				return true
-			}
-
-			// Check if we should ignore this node
-			if ignorer.ShouldIgnore(analyzerName, call) {
 				return true
 			}
 
@@ -95,7 +84,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// Check if the format string contains any placeholders (%v, %s, %d, %+v, etc.)
 			// If it doesn't contain %, it's a fixed string and should use errors.New()
 			if !strings.Contains(formatStr, "%") {
-				pass.Reportf(call.Pos(), "%s: fixed error strings should use errors.New() instead of fmt.Errorf(): %s", analyzerName, formatStr)
+				lineNum := pass.Fset.Position(call.Pos()).Line
+				if changedlines.ShouldReport(filename, lineNum) {
+					pass.Reportf(call.Pos(), "%s: fixed error strings should use errors.New() instead of fmt.Errorf(): %s", analyzerName, formatStr)
+				}
 			}
 
 			return true

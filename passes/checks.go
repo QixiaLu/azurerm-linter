@@ -4,6 +4,8 @@ import (
 	"github.com/qixialu/azurerm-linter/passes/AZC001"
 	"github.com/qixialu/azurerm-linter/passes/AZC002"
 	"github.com/qixialu/azurerm-linter/passes/AZC003"
+	"github.com/qixialu/azurerm-linter/passes/AZC004"
+	"github.com/qixialu/azurerm-linter/passes/AZC005"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -14,4 +16,6 @@ var AllChecks = []*analysis.Analyzer{
 	AZC001.Analyzer,
 	AZC002.Analyzer,
 	AZC003.Analyzer,
+	AZC004.Analyzer,
+	AZC005.Analyzer,
 }
