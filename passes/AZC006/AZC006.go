@@ -330,7 +330,8 @@ func extractIDFieldsFromFile(node *ast.File, modelFieldMapping map[string]string
 			// Skip if any field is empty (unresolvable)
 			for _, field := range fields {
 				if field == "" {
-					return true // Skip this SetID call
+					idFields = []string{}
+					return true // Skip this SetID call, since the id arguments parsing failed
 				}
 				if !seen[field] {
 					seen[field] = true
@@ -407,7 +408,6 @@ func newVariableResolver(funcDecl *ast.FuncDecl, modelFieldMapping map[string]st
 // resolveFieldsFromArgs resolves a list of arguments to field names
 func (r *variableResolver) resolveFieldsFromArgs(args []ast.Expr) []string {
 	var fields []string
-	seen := make(map[string]bool)
 
 	for i, arg := range args {
 		fieldName := r.resolveFieldName(arg)
@@ -428,11 +428,6 @@ func (r *variableResolver) resolveFieldsFromArgs(args []ast.Expr) []string {
 				}
 			}
 		}
-
-		if seen[fieldName] {
-			continue
-		}
-		seen[fieldName] = true
 
 		fields = append(fields, fieldName)
 	}

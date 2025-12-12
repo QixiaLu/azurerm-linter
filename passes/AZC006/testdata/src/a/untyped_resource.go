@@ -55,6 +55,57 @@ func resourceInValid() *schema.Resource {
     }
 }
 
+func resourceValid() *schema.Resource {
+    return &schema.Resource{
+        Create: resourceValidCreate,
+
+        Schema: map[string]*schema.Schema{
+             "name": {
+                Type:     schema.TypeString,
+                Required: true,
+                ForceNew: true,
+            },
+
+            "resource_group_name": {
+                Type:     schema.TypeString,
+                Required: true,
+                ForceNew: true,
+            },
+
+            "location": {
+                Type:     schema.TypeString,
+                Required: true,
+                ForceNew: true,
+            },
+
+            "account_replication_type": {
+                Type:     schema.TypeString,
+                Required: true,
+            },
+
+            "account_tier": {
+                Type:     schema.TypeString,
+                Required: true,
+            },
+
+            "enable_https": {
+                Type:     schema.TypeBool,
+                Optional: true,
+            },
+
+            "tags": {
+                Type:     schema.TypeMap,
+                Optional: true,
+            },
+
+            "primary_key": {
+                Type:     schema.TypeString,
+                Computed: true,
+            },
+        },
+    }
+}
+
 func resourceValidCreate(d *schema.ResourceData, meta interface{}) error {
     resourceGroupName := d.Get("resource_group_name").(string)
     name := d.Get("name").(string)
@@ -63,27 +114,4 @@ func resourceValidCreate(d *schema.ResourceData, meta interface{}) error {
     id := parse.NewResourceID(subscriptionId, resourceGroupName, name)
     d.SetId(id.ID())
     return nil
-}
-
-// Mock parse package - declare as variable to simulate package
-var parse parsePackage
-
-type parsePackage struct{}
-
-type ResourceID struct {
-    SubscriptionId string
-    ResourceGroup string
-    Name          string
-}
-
-func (parsePackage) NewResourceID(subscriptionId, resourceGroup, name string) ResourceID {
-    return ResourceID{
-        SubscriptionId: "11",
-        ResourceGroup: resourceGroup,
-        Name:          name,
-    }
-}
-
-func (id ResourceID) ID() string {
-    return "/subscriptions/sub/resourceGroups/" + id.ResourceGroup + "/providers/Test/resources/" + id.Name
 }
