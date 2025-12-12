@@ -10,6 +10,8 @@ import (
 	"github.com/bflad/tfproviderlint/helper/astutils"
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
+	"github.com/qixialu/azurerm-linter/passes/helpers/modelmapping"
+	"github.com/qixialu/azurerm-linter/passes/helpers/schemafields"
 	"github.com/qixialu/azurerm-linter/passes/schemainfo"
 	"golang.org/x/tools/go/analysis"
 )
@@ -31,7 +33,11 @@ Schema fields should be ordered as follows:
 
 // skipPackages lists package path patterns to skip during analysis
 var skipPackages = []string{"/migration", "/client", "/validate", "/test-data", "/parse", "/models"}
-var skipFileSuffix = []string{"_test.go", "registration.go"}
+var skipFileSuffix = []string{
+	"_test.go",
+	"registration.go",
+	"ip_groups_data_source.go", // Resource Group Name is used to get id, but name is also used later on. Unable to use following pattern to order idFields
+}
 
 var Analyzer = &analysis.Analyzer{
 	Name: analyzerName,
@@ -40,14 +46,6 @@ var Analyzer = &analysis.Analyzer{
 		schemainfo.Analyzer,
 	},
 	Run: run,
-}
-
-type schemaField struct {
-	name     string
-	required bool
-	optional bool
-	computed bool
-	position int // original position in schema
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -61,8 +59,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	schemaInfo := pass.ResultOf[schemainfo.Analyzer].(*schemainfo.SchemaInfo)
 
-	// Cache modelFieldMapping and ID fields per file for performance
-	modelMappingCache := make(map[*ast.File]map[string]string)
 	idFieldsCache := make(map[*ast.File][]string)
 
 	for _, f := range pass.Files {
@@ -82,12 +78,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		isResourceFile := strings.HasSuffix(filename, "_resource.go")
 		isDataSourceFile := strings.HasSuffix(filename, "_data_source.go")
 
-		// Build modelFieldMapping once per file
-		modelFieldMapping, ok := modelMappingCache[f]
-		if !ok {
-			modelFieldMapping = buildModelFieldMapping(f)
-			modelMappingCache[f] = modelFieldMapping
-		}
+		modelFieldMapping := modelmapping.BuildForFile(pass, f)
+		nestedSchemas := schemafields.FindNestedSchemas(f)
 
 		// Extract ID fields once per file (only for resource and data source files)
 		var idFields []string
@@ -131,14 +123,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			// Extract schema fields
-			fields := extractSchemaFields(pass, comp, schemaInfo)
+			fields := schemafields.ExtractFromCompositeLit(pass, comp, schemaInfo)
 			if len(fields) == 0 {
 				return true
 			}
 
 			// Check if this is a nested schema (inside Elem field)
 			// Nested schemas should not be checked for ID fields and location ordering
-			isNested := isNestedSchema(comp, f)
+			isNested := nestedSchemas[comp]
 
 			// Determine if we should check ID fields and location
 			// Skip for: helper files, nested schemas
@@ -188,7 +180,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			expectedOrder := getExpectedOrder(fields, effectiveIDFields, !shouldCheckIDAndLocation)
 			actualOrder := make([]string, len(fields))
 			for i, f := range fields {
-				actualOrder[i] = f.name
+				actualOrder[i] = f.Name
 			}
 
 			// Check if order is correct
@@ -207,80 +199,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	return nil, nil
-}
-
-func extractSchemaFields(pass *analysis.Pass, smap *ast.CompositeLit, schemaInfo *schemainfo.SchemaInfo) []schemaField {
-	var fields []schemaField
-
-	for i, elt := range smap.Elts {
-		kv, ok := elt.(*ast.KeyValueExpr)
-		if !ok {
-			continue
-		}
-
-		// Get field name
-		fieldName := astutils.ExprStringValue(kv.Key)
-		if fieldName == nil {
-			continue
-		}
-
-		field := schemaField{
-			name:     *fieldName,
-			position: i,
-		}
-
-		// Try to parse the value - it could be either:
-		// 1. A composite literal: &schema.Schema{...}
-		// 2. A function call: commonschema.ResourceGroupName()
-
-		switch v := kv.Value.(type) {
-		case *ast.CompositeLit:
-			// Direct schema definition
-			schema := schema.NewSchemaInfo(v, pass.TypesInfo)
-			field.required = schema.Schema.Required
-			field.optional = schema.Schema.Optional
-			field.computed = schema.Schema.Computed
-
-		case *ast.CallExpr:
-			// Function call - try multiple resolution strategies
-			resolved := false
-
-			// Strategy 1: Try to get from schemainfo cache (for cross-package functions)
-			if selExpr, ok := v.Fun.(*ast.SelectorExpr); ok {
-				if pkgIdent, ok := selExpr.X.(*ast.Ident); ok {
-					if obj := pass.TypesInfo.Uses[pkgIdent]; obj != nil {
-						if pkgName, ok := obj.(*types.PkgName); ok {
-							funcKey := pkgName.Imported().Path() + "." + selExpr.Sel.Name
-							if props, ok := schemaInfo.Functions[funcKey]; ok {
-								// Use schema info from the loaded package
-								field.required = props.Required
-								field.optional = props.Optional
-								field.computed = props.Computed
-								resolved = true
-							}
-						}
-					}
-				}
-			}
-
-			// Strategy 2: Try to resolve from same-package function definition
-			if !resolved {
-				if resolvedSchema := resolveSchemaFromFuncCall(pass, v); resolvedSchema != nil {
-					field.required = resolvedSchema.Schema.Required
-					field.optional = resolvedSchema.Schema.Optional
-					field.computed = resolvedSchema.Schema.Computed
-					resolved = true
-				}
-			}
-		default:
-			// Unknown type, skip
-			continue
-		}
-
-		fields = append(fields, field)
-	}
-
-	return fields
 }
 
 // resolveSchemaFromFuncCall attempts to resolve schema info from a function call
@@ -377,13 +295,11 @@ func extractIDFieldsFromFile(node *ast.File, modelFieldMapping map[string]string
 			return true
 		}
 
-		// Look for Create methods (resources) or Read methods (data sources)
 		if funcDecl.Name == nil {
 			return true
 		}
 		methodName := funcDecl.Name.Name
 
-		// For data sources, look in Read; for resources, look in Create
 		if isDataSource {
 			if !strings.Contains(methodName, "Read") {
 				return true
@@ -394,7 +310,7 @@ func extractIDFieldsFromFile(node *ast.File, modelFieldMapping map[string]string
 			}
 		}
 
-		// Build variable resolver (scans function body only once)
+		// Build variable resolver
 		resolver := newVariableResolver(funcDecl, modelFieldMapping)
 
 		// Walk the function body looking for SetID/SetId calls
@@ -412,14 +328,10 @@ func extractIDFieldsFromFile(node *ast.File, modelFieldMapping map[string]string
 			fields := resolver.extractFieldsFromIDArg(call.Args[0])
 
 			// Skip if any field is empty (unresolvable)
-			// This handles cases like: apiId := fmt.Sprintf(...), id := NewApiID(..., apiId)
 			for _, field := range fields {
 				if field == "" {
 					return true // Skip this SetID call
 				}
-			}
-
-			for _, field := range fields {
 				if !seen[field] {
 					seen[field] = true
 					idFields = append(idFields, field)
@@ -433,6 +345,7 @@ func extractIDFieldsFromFile(node *ast.File, modelFieldMapping map[string]string
 	})
 
 	return idFields
+
 }
 
 // variableResolver resolves variables to field names using AST analysis
@@ -441,7 +354,6 @@ type variableResolver struct {
 	varToField        map[string]string   // variable name -> field name
 	idVarAssignments  map[string][]string // ID variable -> list of field names
 	modelFieldMapping map[string]string
-	parentIDFields    map[string]string // parent ID variable -> schema field name (e.g., routeTableId -> route_table_id)
 }
 
 func newVariableResolver(funcDecl *ast.FuncDecl, modelFieldMapping map[string]string) *variableResolver {
@@ -449,11 +361,9 @@ func newVariableResolver(funcDecl *ast.FuncDecl, modelFieldMapping map[string]st
 		varToField:        make(map[string]string),
 		idVarAssignments:  make(map[string][]string),
 		modelFieldMapping: modelFieldMapping,
-		parentIDFields:    make(map[string]string),
 	}
 
-	// Single pass: build all mappings
-	ast.Inspect(funcDecl, func(n ast.Node) bool {
+	ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
 		assign, ok := n.(*ast.AssignStmt)
 		if !ok {
 			return true
@@ -475,57 +385,12 @@ func newVariableResolver(funcDecl *ast.FuncDecl, modelFieldMapping map[string]st
 				continue
 			}
 
-			// 2. Check if RHS is a Parse*ID call (parent ID pattern)
-			// e.g., routeTableId, err := virtualwans.ParseHubRouteTableID(d.Get("route_table_id").(string))
 			if call, ok := rhs.(*ast.CallExpr); ok {
 				if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-					if strings.HasPrefix(sel.Sel.Name, "Parse") && strings.HasSuffix(sel.Sel.Name, "ID") {
-						// Extract the field name from the Parse call argument
-						if len(call.Args) > 0 {
-							if fieldName := extractFieldNameFromArg(call.Args[0], modelFieldMapping); fieldName != "" {
-								resolver.parentIDFields[lhsIdent.Name] = fieldName
-							}
-						}
-						continue
-					}
-				}
-			}
-
-			// 3. Check if RHS is a New*ID call
-			call, ok := rhs.(*ast.CallExpr)
-			if !ok {
-				continue
-			}
-
-			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-				if strings.HasPrefix(sel.Sel.Name, "New") && strings.HasSuffix(sel.Sel.Name, "ID") {
-					// Check if any arguments are selector expressions (parent ID fields)
-					hasParentIDFields := false
-					var parentIDVar string
-
-					for _, arg := range call.Args {
-						if selExpr, ok := arg.(*ast.SelectorExpr); ok {
-							if ident, ok := selExpr.X.(*ast.Ident); ok {
-								// This is a parent ID pattern (e.g., routeTableId.SubscriptionId)
-								hasParentIDFields = true
-								parentIDVar = ident.Name
-								break
-							}
-						}
-					}
-
-					if hasParentIDFields {
-						// Parent resource ID pattern: only extract direct fields, ignore parent ID fields
-						fields := resolver.resolveFieldsFromArgsIgnoringParent(call.Args, parentIDVar)
-
-						// Add parent ID field to the list
-						if parentField, ok := resolver.parentIDFields[parentIDVar]; ok {
-							fields = append(fields, parentField)
-						}
-
-						resolver.idVarAssignments[lhsIdent.Name] = fields
-					} else {
-						// Regular pattern: resolve all fields
+					// Only extract fields from New*ID or Parse*ID calls
+					funcName := sel.Sel.Name
+					if strings.HasPrefix(funcName, "New") && strings.HasSuffix(funcName, "ID") ||
+						strings.HasPrefix(funcName, "Parse") && strings.HasSuffix(funcName, "ID") {
 						fields := resolver.resolveFieldsFromArgs(call.Args)
 						resolver.idVarAssignments[lhsIdent.Name] = fields
 					}
@@ -544,17 +409,31 @@ func (r *variableResolver) resolveFieldsFromArgs(args []ast.Expr) []string {
 	var fields []string
 	seen := make(map[string]bool)
 
-	for _, arg := range args {
+	for i, arg := range args {
 		fieldName := r.resolveFieldName(arg)
 
-		// Skip duplicates
+		// Special case: skip subscription ID (first argument only)
+		if i == 0 && fieldName == "" {
+			// Check if it's a selector expression (e.g., meta.SubscriptionId)
+			if selExpr, ok := arg.(*ast.SelectorExpr); ok {
+				selectorName := selExpr.Sel.Name
+				if strings.Contains(strings.ToLower(selectorName), "subscription") {
+					continue
+				}
+			}
+			// Check if it's an identifier variable (e.g., subscriptionId)
+			if ident, ok := arg.(*ast.Ident); ok {
+				if strings.Contains(strings.ToLower(ident.Name), "subscription") {
+					continue
+				}
+			}
+		}
+
 		if seen[fieldName] {
 			continue
 		}
 		seen[fieldName] = true
 
-		// Add field name (including empty string for unresolvable fields)
-		// Empty strings will be detected later to skip the entire ID extraction
 		fields = append(fields, fieldName)
 	}
 	return fields
@@ -577,59 +456,29 @@ func (r *variableResolver) resolveFieldName(expr ast.Expr) string {
 	return ""
 }
 
-// resolveFieldsFromArgsIgnoringParent resolves arguments but ignores fields from parent ID object
-// This is used for parent resource ID patterns where ID construction uses fields from another parsed ID
-// e.g. azurerm_virtual_hub_route_table_route
-func (r *variableResolver) resolveFieldsFromArgsIgnoringParent(args []ast.Expr, parentIDVar string) []string {
-	var fields []string
-	seen := make(map[string]bool)
-
-	for _, arg := range args {
-		// Skip selector expressions on parent ID (e.g., routeTableId.SubscriptionId)
-		if selExpr, ok := arg.(*ast.SelectorExpr); ok {
-			if ident, ok := selExpr.X.(*ast.Ident); ok && ident.Name == parentIDVar {
-				continue // Ignore parent ID fields
-			}
-		}
-
-		if fieldName := r.resolveFieldName(arg); fieldName != "" {
-			if !seen[fieldName] {
-				seen[fieldName] = true
-				fields = append(fields, fieldName)
-			}
-		}
-	}
-
-	return fields
-}
-
 // extractFieldsFromIDArg extracts field names from the SetID argument
-// This is a method of variableResolver for cleaner access to mappings
 func (r *variableResolver) extractFieldsFromIDArg(expr ast.Expr) []string {
 	// Case 1: Direct identifier (variable holding the ID)
 	if ident, ok := expr.(*ast.Ident); ok {
 		if assignedFields, ok := r.idVarAssignments[ident.Name]; ok {
 			return assignedFields
 		}
-	}
-
-	// Case 2: Direct New*ID call - use resolver to handle all arguments uniformly
-	if call, ok := expr.(*ast.CallExpr); ok {
-		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-			if strings.HasPrefix(sel.Sel.Name, "New") && strings.HasSuffix(sel.Sel.Name, "ID") {
-				return r.resolveFieldsFromArgs(call.Args)
-			}
+		if fieldName, ok := r.varToField[ident.Name]; ok {
+			return []string{fieldName}
 		}
 	}
 
-	// Case 3: Method call on ID (e.g., id.ID())
 	if call, ok := expr.(*ast.CallExpr); ok {
 		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+			// Case 2: Method call on ID (e.g., id.ID())
 			if sel.Sel.Name == "ID" {
 				if ident, ok := sel.X.(*ast.Ident); ok {
 					// Look up the ID variable's field assignments
 					if assignedFields, ok := r.idVarAssignments[ident.Name]; ok {
 						return assignedFields
+					}
+					if assignedFields, ok := r.varToField[ident.Name]; ok {
+						return []string{assignedFields}
 					}
 				}
 			}
@@ -736,90 +585,11 @@ func toSnakeCase(s string) string {
 	return strings.ToLower(string(result))
 }
 
-// buildModelFieldMapping builds a map from Go field names to tfschema tag values
-// by parsing struct type definitions in the file
-func buildModelFieldMapping(node *ast.File) map[string]string {
-	mapping := make(map[string]string)
-
-	ast.Inspect(node, func(n ast.Node) bool {
-		// Look for type declarations
-		genDecl, ok := n.(*ast.GenDecl)
-		if !ok {
-			return true
-		}
-
-		// Process each spec in the declaration
-		for _, spec := range genDecl.Specs {
-			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-
-			// Check if it's a struct type
-			structType, ok := typeSpec.Type.(*ast.StructType)
-			if !ok {
-				continue
-			}
-
-			// Only process structs with "Model" in their name
-			if !strings.Contains(typeSpec.Name.Name, "Model") {
-				continue
-			}
-
-			// Extract field mappings from struct fields
-			for _, field := range structType.Fields.List {
-				if field.Tag == nil {
-					continue
-				}
-
-				// Parse the struct tag
-				tagValue := field.Tag.Value
-				// Remove backticks
-				tagValue = strings.Trim(tagValue, "`")
-
-				// Look for tfschema tag
-				if strings.Contains(tagValue, "tfschema:") {
-					// Extract the tfschema value
-					if schemaName := extractTFSchemaTag(tagValue); schemaName != "" {
-						// Map each field name to its tfschema value
-						for _, name := range field.Names {
-							mapping[name.Name] = schemaName
-						}
-					}
-				}
-			}
-		}
-
-		return true
-	})
-
-	return mapping
-}
-
-// extractTFSchemaTag extracts the value from a tfschema struct tag
-// Input: `tfschema:"resource_group_name"`
-// Output: resource_group_name
-func extractTFSchemaTag(tag string) string {
-	// Look for tfschema:"value"
-	start := strings.Index(tag, "tfschema:\"")
-	if start == -1 {
-		return ""
-	}
-	start += len("tfschema:\"")
-
-	end := strings.Index(tag[start:], "\"")
-	if end == -1 {
-		return ""
-	}
-
-	return tag[start : start+end]
-}
-
-func getExpectedOrder(fields []schemaField, idFields []string, isNested bool) []string {
+func getExpectedOrder(fields []schemafields.SchemaField, idFields []string, isNested bool) []string {
 	// Create a map for quick lookup of field properties
-	fieldMap := make(map[string]schemaField)
+	fieldMap := make(map[string]schemafields.SchemaField)
 	for _, field := range fields {
-		fieldMap[field.name] = field
+		fieldMap[field.Name] = field
 	}
 
 	// Categorize fields
@@ -829,48 +599,41 @@ func getExpectedOrder(fields []schemaField, idFields []string, isNested bool) []
 	var optionalFields []string
 	var computedFields []string
 
-	for _, field := range fields {
-		// Check if it's an ID field (only for top-level schemas)
-		if !isNested {
-			isIDField := false
-			for _, idField := range idFields {
-				if field.name == idField {
-					// If ID field is computed-only, treat it as computed field instead
-					if field.computed && !field.optional && !field.required {
-						computedFields = append(computedFields, field.name)
-					} else {
-						idFieldsList = append(idFieldsList, field.name)
-					}
-					isIDField = true
-					break
+	idFieldsSet := make(map[string]bool)
+	if !isNested {
+		for i := len(idFields) - 1; i >= 0; i-- {
+			idField := idFields[i]
+			if f, ok := fieldMap[idField]; ok {
+				if !(f.Computed && !f.Optional && !f.Required) {
+					idFieldsList = append(idFieldsList, idField)
+					idFieldsSet[idField] = true
 				}
 			}
-			if isIDField {
-				continue
-			}
+		}
+	}
 
-			// Check if it's location (only for top-level schemas)
-			if field.name == "location" {
-				// If location is computed-only, treat it as computed field instead
-				if field.computed && !field.optional && !field.required {
-					computedFields = append(computedFields, field.name)
-				} else {
-					locationField = append(locationField, field.name)
-				}
-				continue
-			}
+	for _, field := range fields {
+		// Check if it's an ID field (already processed above)
+		if idFieldsSet[field.Name] {
+			continue
+		}
+
+		// Check if it's location (only for top-level schemas)
+		if !isNested && field.Name == "location" {
+			locationField = append(locationField, field.Name)
+			continue
 		}
 
 		// Categorize by type (for all schemas including nested)
-		if field.computed && !field.optional && !field.required {
-			computedFields = append(computedFields, field.name)
-		} else if field.required {
-			requiredFields = append(requiredFields, field.name)
-		} else if field.optional {
-			optionalFields = append(optionalFields, field.name)
+		if field.Computed && !field.Optional && !field.Required {
+			computedFields = append(computedFields, field.Name)
+		} else if field.Required {
+			requiredFields = append(requiredFields, field.Name)
+		} else if field.Optional {
+			optionalFields = append(optionalFields, field.Name)
 		} else {
 			// Default to optional if no flags set
-			optionalFields = append(optionalFields, field.name)
+			optionalFields = append(optionalFields, field.Name)
 		}
 	}
 
@@ -888,41 +651,6 @@ func getExpectedOrder(fields []schemaField, idFields []string, isNested bool) []
 	result = append(result, computedFields...)
 
 	return result
-}
-
-// isNestedSchema checks if a schema map is nested within an Elem field definition.
-// Nested schemas (e.g., those inside Elem of a List/Set) shouldn't be checked for
-// resource ID field ordering requirements, as they are not top-level resource schemas.
-func isNestedSchema(comp *ast.CompositeLit, file *ast.File) bool {
-	// Track current node in AST traversal
-	var isNested bool
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		// Look for key-value expressions (schema field definitions)
-		kv, ok := n.(*ast.KeyValueExpr)
-		if !ok {
-			return true
-		}
-
-		// Check if the key is "Elem"
-		key, ok := kv.Key.(*ast.Ident)
-		if !ok || key.Name != "Elem" {
-			return true
-		}
-
-		// Check if our schema map is within this Elem value
-		ast.Inspect(kv.Value, func(n2 ast.Node) bool {
-			if n2 == comp {
-				isNested = true
-				return false
-			}
-			return true
-		})
-
-		return !isNested // stop searching if we found it
-	})
-
-	return isNested
 }
 
 func areOrdersEqual(actual, expected []string) bool {
