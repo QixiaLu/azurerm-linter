@@ -125,7 +125,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if !hasValidation {
 					pos := pass.Fset.Position(kv.Pos())
 					if changedlines.ShouldReport(pos.Filename, pos.Line) {
-						pass.Reportf(kv.Pos(), "%s: string argument %q must have %s\n", analyzerName, util.IssueLine(propertyName), util.FixedCode("ValidateFunc"))
+						pass.Reportf(kv.Pos(), "%s: string argument %q must have %s\n", analyzerName, propertyName, util.FixedCode("ValidateFunc"))
 					}
 				}
 			}
