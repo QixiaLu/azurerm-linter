@@ -7,8 +7,6 @@ import (
 // Test: Typed resource using model fields instead of d.Get()
 func typedResourceCorrectOrder() *schema.Resource {
 	return &schema.Resource{
-		Create: typedResourceCreate,
-
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
@@ -48,8 +46,6 @@ func typedResourceCorrectOrder() *schema.Resource {
 // Test: Typed resource with wrong order
 func typedResourceWrongOrder() *schema.Resource {
 	return &schema.Resource{
-		Create: typedResourceCreate,
-
 		Schema: map[string]*schema.Schema{ // want `name, resource_group_name, location, sku_name, enabled, tags`
 			"resource_group_name": {
 				Type:     schema.TypeString,
@@ -84,36 +80,4 @@ func typedResourceWrongOrder() *schema.Resource {
 			},
 		},
 	}
-}
-
-type TypedResourceModel struct {
-	Name              string            `tfschema:"name"`
-	ResourceGroupName string            `tfschema:"resource_group_name"`
-	Location          string            `tfschema:"location"`
-	SkuName           string            `tfschema:"sku_name"`
-	Enabled           bool              `tfschema:"enabled"`
-	Tags              map[string]string `tfschema:"tags"`
-}
-
-type mockMetadata struct {
-	model TypedResourceModel
-}
-
-func (m *mockMetadata) Decode(target interface{}) error {
-	// Simulate decoding
-	return nil
-}
-
-func typedResourceCreate(d *schema.ResourceData, meta interface{}) error {
-	subscriptionId := "sub-typed"
-
-	// Simulate typed SDK pattern
-	metadata := &mockMetadata{}
-	var model TypedResourceModel
-	metadata.Decode(&model)
-
-	// Access via model fields instead of d.Get()
-	id := parse.NewResourceID(subscriptionId, model.ResourceGroupName, model.Name)
-	d.SetId(id.ID())
-	return nil
 }

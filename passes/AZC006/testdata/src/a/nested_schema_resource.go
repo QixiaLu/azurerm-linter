@@ -7,8 +7,6 @@ import (
 // Test: Nested schemas should skip ID field ordering
 func resourceWithNestedSchema() *schema.Resource {
 	return &schema.Resource{
-		Create: nestedSchemaResourceCreate,
-
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
@@ -64,8 +62,6 @@ func resourceWithNestedSchema() *schema.Resource {
 // Test: Nested schema with wrong order should be flagged
 func resourceWithBadNestedSchema() *schema.Resource {
 	return &schema.Resource{
-		Create: nestedSchemaResourceCreate,
-
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
@@ -97,14 +93,4 @@ func resourceWithBadNestedSchema() *schema.Resource {
 			},
 		},
 	}
-}
-
-func nestedSchemaResourceCreate(d *schema.ResourceData, meta interface{}) error {
-	resourceGroupName := d.Get("resource_group_name").(string)
-	name := d.Get("name").(string)
-	subscriptionId := "sub123"
-
-	id := parse.NewResourceID(subscriptionId, resourceGroupName, name)
-	d.SetId(id.ID())
-	return nil
 }

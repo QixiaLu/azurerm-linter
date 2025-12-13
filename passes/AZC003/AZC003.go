@@ -7,6 +7,7 @@ import (
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
+	"github.com/qixialu/azurerm-linter/passes/util"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -126,7 +127,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if optionalPos > computedPos {
 					pos := pass.Fset.Position(kv.Pos())
 					if changedlines.ShouldReport(pos.Filename, pos.Line) {
-						pass.Reportf(kv.Pos(), "%s: field %q has Optional and Computed in wrong order (Optional must come before Computed)", analyzerName, fieldName)
+						pass.Reportf(kv.Pos(), "%s: field %q has %s and %s in wrong order (%s must come before %s)",
+							analyzerName, fieldName,
+							util.FixedCode("Optional"), util.IssueLine("Computed"),
+							util.FixedCode("Optional"), util.IssueLine("Computed"))
 					}
 					continue
 				}
@@ -155,7 +159,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if !hasOCComment {
 					pos := pass.Fset.Position(kv.Pos())
 					if changedlines.ShouldReport(pos.Filename, pos.Line) {
-						pass.Reportf(kv.Pos(), "%s: field %q is Optional+Computed but missing required comment. Add '// NOTE: O+C - <explanation>' between Optional and Computed", analyzerName, fieldName)
+						pass.Reportf(kv.Pos(), "%s: field %q is Optional+Computed but missing required comment. Add %s between Optional and Computed\n",
+							analyzerName, fieldName, util.FixedCode("'// NOTE: O+C - <explanation>'"))
 					}
 				}
 			}

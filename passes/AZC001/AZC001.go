@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
+	"github.com/qixialu/azurerm-linter/passes/util"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -90,7 +91,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if !strings.Contains(formatStr, "%") {
 				lineNum := pass.Fset.Position(call.Pos()).Line
 				if changedlines.ShouldReport(filename, lineNum) {
-					pass.Reportf(call.Pos(), "%s: fixed error strings should use errors.New() instead of fmt.Errorf(): %s", analyzerName, formatStr)
+					pass.Reportf(call.Pos(), "%s: fixed error strings should use %s instead of %s: %s\n",
+						analyzerName,
+						util.FixedCode("errors.New()"),
+						util.IssueLine("fmt.Errorf()"),
+						util.IssueLine(formatStr))
 				}
 			}
 

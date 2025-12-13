@@ -6,8 +6,6 @@ import (
 
 func resourceInValid() *schema.Resource {
     return &schema.Resource{
-        Create: resourceValidCreate,
-
         Schema: map[string]*schema.Schema{ // want `name, resource_group_name, location, account_replication_type, account_tier, enable_https, tags, primary_key`
             "resource_group_name": {
                 Type:     schema.TypeString,
@@ -57,8 +55,6 @@ func resourceInValid() *schema.Resource {
 
 func resourceValid() *schema.Resource {
     return &schema.Resource{
-        Create: resourceValidCreate,
-
         Schema: map[string]*schema.Schema{
              "name": {
                 Type:     schema.TypeString,
@@ -104,14 +100,4 @@ func resourceValid() *schema.Resource {
             },
         },
     }
-}
-
-func resourceValidCreate(d *schema.ResourceData, meta interface{}) error {
-    resourceGroupName := d.Get("resource_group_name").(string)
-    name := d.Get("name").(string)
-    subscriptionId := "randomId"
-
-    id := parse.NewResourceID(subscriptionId, resourceGroupName, name)
-    d.SetId(id.ID())
-    return nil
 }

@@ -4,8 +4,9 @@ import (
 	"go/ast"
 	"strings"
 
-	"golang.org/x/tools/go/analysis"
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
+	"github.com/qixialu/azurerm-linter/passes/util"
+	"golang.org/x/tools/go/analysis"
 )
 
 const analyzerName = "AZC005"
@@ -77,7 +78,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					pos := pass.Fset.Position(kv.Pos())
 					// Only report if this line is in the changed lines (or filter is disabled)
 					if changedlines.ShouldReport(pos.Filename, pos.Line) {
-						pass.Reportf(kv.Pos(), "%s: field %q should use '_percentage' suffix instead of '_in_percent' (suggested: %q)", analyzerName, fieldName, suggestedName)
+						pass.Reportf(kv.Pos(), "%s: field %q should use %s suffix instead of %s (suggested: %s)\n",
+							analyzerName, fieldName,
+							util.FixedCode("'_percentage'"),
+							util.IssueLine("'_in_percent'"),
+							util.FixedCode(suggestedName))
 					}
 				}
 			}

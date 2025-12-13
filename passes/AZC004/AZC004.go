@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
+	"github.com/qixialu/azurerm-linter/passes/util"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -202,7 +203,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						pos := pass.Fset.Position(kv.Pos())
 						// Only report if this line is in the changed lines (or filter is disabled)
 						if changedlines.ShouldReport(pos.Filename, pos.Line) {
-							pass.Reportf(kv.Pos(), "%s: field %q has MaxItems: 1 with only one nested property - consider flattening or add inline comment explaining why (e.g., '// Additional properties will be added per service team confirmation')", analyzerName, fieldName)
+							pass.Reportf(kv.Pos(), "%s: field %q has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
+								analyzerName, fieldName,
+								util.IssueLine("MaxItems: 1"),
+								util.FixedCode("flattening"),
+								util.FixedCode("'// Additional properties will be added per service team confirmation'"))
 						}
 					}
 				}

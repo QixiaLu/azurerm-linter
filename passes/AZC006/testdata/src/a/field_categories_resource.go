@@ -7,8 +7,6 @@ import (
 // Test: Proper categorization - Required, Optional, Computed
 func resourceFieldCategories() *schema.Resource {
 	return &schema.Resource{
-		Create: fieldCategoriesResourceCreate,
-
 		Schema: map[string]*schema.Schema{
 			// ID fields first
 			"name": {
@@ -69,8 +67,6 @@ func resourceFieldCategories() *schema.Resource {
 // Test: Wrong category order
 func resourceWrongCategoryOrder() *schema.Resource {
 	return &schema.Resource{
-		Create: fieldCategoriesResourceCreate,
-
 		Schema: map[string]*schema.Schema{ // want `name, resource_group_name, location, account_tier, sku, enable_https, tags, created_time, primary_key`
 			"name": {
 				Type:     schema.TypeString,
@@ -123,14 +119,4 @@ func resourceWrongCategoryOrder() *schema.Resource {
 			},
 		},
 	}
-}
-
-func fieldCategoriesResourceCreate(d *schema.ResourceData, meta interface{}) error {
-	resourceGroupName := d.Get("resource_group_name").(string)
-	name := d.Get("name").(string)
-	subscriptionId := "sub"
-
-	id := parse.NewResourceID(subscriptionId, resourceGroupName, name)
-	d.SetId(id.ID())
-	return nil
 }

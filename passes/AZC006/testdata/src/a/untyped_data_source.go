@@ -7,8 +7,6 @@ import (
 // Test: Data source with correct order
 func unTypedDataSourceValid() *schema.Resource {
 	return &schema.Resource{
-		Read: unTypedDataSourceRead,
-
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
@@ -41,9 +39,7 @@ func unTypedDataSourceValid() *schema.Resource {
 // Test: Data source with wrong order
 func unTypedDataSourceInvalid() *schema.Resource {
 	return &schema.Resource{
-		Read: unTypedDataSourceRead,
-
-		Schema: map[string]*schema.Schema{ // want `name, resource_group_name, location, account_tier, tags`
+		Schema: map[string]*schema.Schema{ // want `name, resource_group_name, account_tier, location, tags`
 			"resource_group_name": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -72,12 +68,3 @@ func unTypedDataSourceInvalid() *schema.Resource {
 	}
 }
 
-func unTypedDataSourceRead(d *schema.ResourceData, meta interface{}) error {
-	resourceGroupName := d.Get("resource_group_name").(string)
-	name := d.Get("name").(string)
-	subscriptionId := "sub"
-
-	id := parse.NewResourceID(subscriptionId, resourceGroupName, name)
-	d.SetId(id.ID())
-	return nil
-}
