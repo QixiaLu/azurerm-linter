@@ -106,7 +106,7 @@ Check lines from a git diff file:
 ```bash
 # Generate and use a diff file
 git diff main > changes.patch
-./azurerm-linter -changed-files=changes.patch ./internal/services/...
+./azurerm-linter -diff-file=changes.patch ./internal/services/...
 ```
 
-**Note**: When using any of the changed-line detection modes (`-remote`, `-pr`, `-changed-files`), the linter will only report issues on lines that were modified, making it easier to focus on reviewing new changes without noise from existing code.
+**Note**: When using any of the changed-line detection modes (`-remote`, `-pr`, `-diff-file`), the linter will only report issues on lines that were modified, making it easier to focus on reviewing new changes without noise from existing code.

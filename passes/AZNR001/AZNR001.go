@@ -59,6 +59,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
+		// Skip non-newly added files
+		if !changedlines.IsNewFile(filename) {
+			continue
+		}
+
 		for _, skip := range skipFileSuffix {
 			if strings.HasSuffix(filename, skip) {
 				continue
@@ -74,25 +79,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 
-			// Check if it's a map literal (map[string]*schema.Schema or map[string]*pluginsdk.Schema)
-			mapType, ok := comp.Type.(*ast.MapType)
-			if !ok {
-				return true
-			}
-
-			// Check if key is string
-			if ident, ok := mapType.Key.(*ast.Ident); !ok || ident.Name != "string" {
-				return true
-			}
-
-			// Check if value is *schema.Schema or *pluginsdk.Schema
-			starExpr, ok := mapType.Value.(*ast.StarExpr)
-			if !ok {
-				return true
-			}
-
-			selExpr, ok := starExpr.X.(*ast.SelectorExpr)
-			if !ok || selExpr.Sel.Name != "Schema" {
+			// Check if it's a schema map
+			if !schemafields.IsSchemaMap(comp) {
 				return true
 			}
 
@@ -113,13 +101,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				for i, f := range fields {
 					actualOrder[i] = f.Name
 				}
-				pos := pass.Fset.Position(comp.Pos())
-				if changedlines.ShouldReport(filename, pos.Line) {
-					pass.Reportf(comp.Pos(), "%s: %s\nExpected order:\n  %s\nActual order:\n  %s\n",
-						analyzerName, issue,
-						util.FixedCode(strings.Join(expectedOrder, ", ")),
-						util.IssueLine(strings.Join(actualOrder, ", ")))
-				}
+				pass.Reportf(comp.Pos(), "%s: %s\nExpected order:\n  %s\nActual order:\n  %s\n",
+					analyzerName, issue,
+					util.FixedCode(strings.Join(expectedOrder, ", ")),
+					util.IssueLine(strings.Join(actualOrder, ", ")))
 			}
 
 			return true

@@ -3,6 +3,7 @@ package changedlines
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -17,16 +18,16 @@ func initializeFromGit() error {
 	}
 
 	fmt.Fprintf(os.Stderr, "Using git method (local mode)\n")
-	baseCommit, headCommit, err := resolveForLocal(repo)
+
+	targetCommit, worktree, err := resolveForLocal(repo)
 	if err != nil {
-		return fmt.Errorf("failed to resolve commits: %w", err)
+		return fmt.Errorf("failed to resolve target: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Comparing: %s..%s\n",
-		baseCommit.Hash.String()[:7],
-		headCommit.Hash.String()[:7])
+	fmt.Fprintf(os.Stderr, "Comparing: %s..worktree (includes uncommitted changes)\n",
+		targetCommit.Hash.String()[:7])
 
-	if err := processDiff(baseCommit, headCommit); err != nil {
+	if err := processDiffWithWorktree(repo, targetCommit, worktree); err != nil {
 		return fmt.Errorf("failed to process diff: %w", err)
 	}
 
@@ -36,54 +37,24 @@ func initializeFromGit() error {
 	return nil
 }
 
-// processDiff processes the diff between two commits and populates changed files/lines
-func processDiff(baseCommit, headCommit *object.Commit) error {
-	baseTree, err := baseCommit.Tree()
+// processDiffWithWorktree compares a commit with the current worktree using git diff
+func processDiffWithWorktree(repo *git.Repository, baseCommit *object.Commit, worktree *git.Worktree) error {
+	cmd := exec.Command("git", "diff", baseCommit.Hash.String())
+	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to get base tree: %w", err)
+		return fmt.Errorf("failed to run git diff: %w", err)
 	}
 
-	headTree, err := headCommit.Tree()
-	if err != nil {
-		return fmt.Errorf("failed to get head tree: %w", err)
+	diffOutput := string(output)
+	if diffOutput == "" {
+		return nil
 	}
 
-	changes, err := baseTree.Diff(headTree)
-	if err != nil {
-		return fmt.Errorf("failed to calculate diff: %w", err)
-	}
-
-	for _, change := range changes {
-		filePath := change.To.Name
-		if filePath == "" {
-			filePath = change.From.Name
-		}
-
-		if !isServiceFile(filePath) {
-			continue
-		}
-
-		normalizedPath := normalizeFilePath(filePath)
-
-		patch, err := change.Patch()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to get patch for %s: %v\n", normalizedPath, err)
-			continue
-		}
-
-		if err := parsePatch(normalizedPath, patch.String()); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to parse patch for %s: %v\n", normalizedPath, err)
-			continue
-		}
-
-		changedFiles[normalizedPath] = true
-	}
-
-	return nil
+	return parseDiffOutput(diffOutput)
 }
 
-// resolveForLocal resolves the base and head commits for local git comparison
-func resolveForLocal(repo *git.Repository) (*object.Commit, *object.Commit, error) {
+// resolveForLocal resolves the target commit and worktree for comparison
+func resolveForLocal(repo *git.Repository) (*object.Commit, *git.Worktree, error) {
 	head, err := repo.Head()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get HEAD: %w", err)
@@ -99,6 +70,11 @@ func resolveForLocal(repo *git.Repository) (*object.Commit, *object.Commit, erro
 	headCommit, err := repo.CommitObject(head.Hash())
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get head commit: %w", err)
+	}
+
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get worktree: %w", err)
 	}
 
 	targetRemote, targetBranch, err := detectTargetBranch(repo, currentBranch)
@@ -123,13 +99,14 @@ func resolveForLocal(repo *git.Repository) (*object.Commit, *object.Commit, erro
 
 	mergeBases, err := headCommit.MergeBase(targetCommit)
 	if err != nil || len(mergeBases) == 0 {
-		fmt.Fprintf(os.Stderr, "Warning: failed to find merge-base, using direct diff: %v\n", err)
-		return targetCommit, headCommit, nil
+		fmt.Fprintf(os.Stderr, "Warning: failed to find merge-base, using target directly: %v\n", err)
+		return targetCommit, worktree, nil
 	}
 
 	mergeBase := mergeBases[0]
 	fmt.Fprintf(os.Stderr, "Merge-base: %s\n", mergeBase.Hash.String()[:7])
-	return mergeBase, headCommit, nil
+
+	return mergeBase, worktree, nil
 }
 
 // detectTargetBranch detects the target remote and branch for comparison
@@ -163,7 +140,6 @@ func detectTargetBranch(repo *git.Repository, currentBranch string) (string, str
 		detectedRemote = remote
 	}
 
-	// 4. Use default branch if still not set
 	if detectedBranch == "" {
 		detectedBranch = "main"
 	}
@@ -232,4 +208,24 @@ func autoDetectRemote(repo *git.Repository) (string, error) {
 	}
 
 	return "", fmt.Errorf("no suitable remote found (origin or upstream)")
+}
+
+// splitContentLines splits content into lines
+func splitContentLines(content string) []string {
+	if content == "" {
+		return nil
+	}
+
+	var lines []string
+	start := 0
+	for i := 0; i < len(content); i++ {
+		if content[i] == '\n' {
+			lines = append(lines, content[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(content) {
+		lines = append(lines, content[start:])
+	}
+	return lines
 }

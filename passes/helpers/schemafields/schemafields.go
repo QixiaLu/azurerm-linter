@@ -19,6 +19,33 @@ type SchemaField struct {
 	position int
 }
 
+// IsSchemaMap checks if a composite literal is a map[string]*schema.Schema or map[string]*pluginsdk.Schema
+func IsSchemaMap(comp *ast.CompositeLit) bool {
+	// Check if it's a map literal
+	mapType, ok := comp.Type.(*ast.MapType)
+	if !ok {
+		return false
+	}
+
+	// Check if key is string
+	if ident, ok := mapType.Key.(*ast.Ident); !ok || ident.Name != "string" {
+		return false
+	}
+
+	// Check if value is *schema.Schema or *pluginsdk.Schema
+	starExpr, ok := mapType.Value.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+
+	selExpr, ok := starExpr.X.(*ast.SelectorExpr)
+	if !ok || selExpr.Sel.Name != "Schema" {
+		return false
+	}
+
+	return true
+}
+
 // ExtractFromCompositeLit extracts schema fields from a map[string]*schema.Schema composite literal
 // parentField is the name of the parent field (e.g., "Elem") if this schema is nested, empty string otherwise
 func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schemaInfo *schemainfo.SchemaInfo) []SchemaField {
@@ -151,14 +178,20 @@ func FindNestedSchemas(file *ast.File) map[*ast.CompositeLit]bool {
 
 // resolveSchemaFromFuncCall attempts to resolve schema info from a function call
 func resolveSchemaFromFuncCall(pass *analysis.Pass, call *ast.CallExpr) *schema.SchemaInfo {
-	// Get the function selector
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
+	var funcObj types.Object
+
+	// Handle both selector expressions (pkg.Function) and identifiers (Function)
+	switch fun := call.Fun.(type) {
+	case *ast.SelectorExpr:
+		// Cross-package function call like commonschema.ResourceGroupName()
+		funcObj = pass.TypesInfo.Uses[fun.Sel]
+	case *ast.Ident:
+		// Same-package function call like metadataSchema()
+		funcObj = pass.TypesInfo.Uses[fun]
+	default:
 		return nil
 	}
 
-	// Get the function object from TypesInfo
-	funcObj := pass.TypesInfo.Uses[sel.Sel]
 	if funcObj == nil {
 		return nil
 	}

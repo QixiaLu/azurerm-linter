@@ -7,6 +7,7 @@ import (
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
+	"github.com/qixialu/azurerm-linter/passes/helpers/schemafields"
 	"github.com/qixialu/azurerm-linter/passes/util"
 	"golang.org/x/tools/go/analysis"
 )
@@ -63,25 +64,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 
-			// Check if it's a map literal (map[string]*schema.Schema or map[string]*pluginsdk.Schema)
-			mapType, ok := comp.Type.(*ast.MapType)
-			if !ok {
-				return true
-			}
-
-			// Check if key is string
-			if ident, ok := mapType.Key.(*ast.Ident); !ok || ident.Name != "string" {
-				return true
-			}
-
-			// Check if value is *schema.Schema or *pluginsdk.Schema
-			starExpr, ok := mapType.Value.(*ast.StarExpr)
-			if !ok {
-				return true
-			}
-
-			selExpr, ok := starExpr.X.(*ast.SelectorExpr)
-			if !ok || selExpr.Sel.Name != "Schema" {
+			// Check if it's a schema map
+			if !schemafields.IsSchemaMap(comp) {
 				return true
 			}
 

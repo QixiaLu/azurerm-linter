@@ -47,6 +47,9 @@ func initializeFromGitHubAPI() error {
 		// Normalize the file path for consistent tracking
 		normalizedPath := normalizeFilePath(file.Filename)
 
+		// Check if this is a new file
+		isNewFile := file.Status == "added"
+
 		if file.Patch != "" {
 			if err := parsePatch(normalizedPath, file.Patch); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to parse patch for %s: %v\n", file.Filename, err)
@@ -54,6 +57,9 @@ func initializeFromGitHubAPI() error {
 		}
 
 		changedFiles[normalizedPath] = true
+		if isNewFile {
+			newFiles[normalizedPath] = true
+		}
 	}
 
 	fmt.Fprintf(os.Stderr, "✓ Found %d changed files from GitHub API\n", len(changedFiles))

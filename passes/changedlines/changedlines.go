@@ -27,6 +27,7 @@ var (
 	mu           sync.RWMutex
 	changedLines map[string]map[int]bool
 	changedFiles map[string]bool
+	newFiles     map[string]bool
 	initialized  bool
 
 	hunkRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@`)
@@ -39,6 +40,7 @@ func Initialize() error {
 
 	changedLines = make(map[string]map[int]bool)
 	changedFiles = make(map[string]bool)
+	newFiles = make(map[string]bool)
 
 	// Check if user provided a diff file
 	if diffFile != nil && *diffFile != "" {
@@ -76,26 +78,41 @@ func initializeFromGitRepoSmart() error {
 // parsePatch parses a patch string and extracts changed line numbers
 func parsePatch(filePath string, patchContent string) error {
 	scanner := bufio.NewScanner(strings.NewReader(patchContent))
+	var currentLine int
+	inHunk := false
+
+	// Initialize the map once
+	if changedLines[filePath] == nil {
+		changedLines[filePath] = make(map[int]bool)
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
+		// Check for hunk header
 		if matches := hunkRegex.FindStringSubmatch(line); matches != nil {
 			startLine, _ := strconv.Atoi(matches[1])
-			count := 1
-			if matches[2] != "" {
-				if c, _ := strconv.Atoi(matches[2]); c > 0 {
-					count = c
-				}
-			}
+			currentLine = startLine
+			inHunk = true
+			continue
+		}
 
-			if changedLines[filePath] == nil {
-				changedLines[filePath] = make(map[int]bool)
-			}
+		if !inHunk {
+			continue
+		}
 
-			for i := 0; i < count; i++ {
-				changedLines[filePath][startLine+i] = true
-			}
+		if len(line) == 0 {
+			currentLine++
+			continue
+		}
+
+		prefix := line[0]
+		switch prefix {
+		case '+':
+			changedLines[filePath][currentLine] = true
+			currentLine++
+		case ' ':
+			currentLine++
 		}
 	}
 
@@ -148,12 +165,29 @@ func IsFileChanged(filename string) bool {
 		return true
 	}
 
-	if !isServiceFile(filename) {
+	relPath := normalizeFilePath(filename)
+	if !isServiceFile(relPath) {
 		return true
 	}
 
-	relPath := normalizeFilePath(filename)
 	return changedFiles[relPath]
+}
+
+// IsNewFile checks if a file is newly added
+func IsNewFile(filename string) bool {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if !initialized || len(newFiles) == 0 {
+		return false
+	}
+
+	relPath := normalizeFilePath(filename)
+	if !isServiceFile(relPath) {
+		return false
+	}
+
+	return newFiles[relPath]
 }
 
 // IsEnabled checks if change tracking is enabled and has data
@@ -189,4 +223,49 @@ func getTotalChangedLines() int {
 		total += len(lines)
 	}
 	return total
+}
+
+// parseDiffOutput parses git diff output containing multiple files
+func parseDiffOutput(diffOutput string) error {
+	diffGitRegex := regexp.MustCompile(`(?m)^diff --git a/(.+) b/(.+)$`)
+	matches := diffGitRegex.FindAllStringSubmatchIndex(diffOutput, -1)
+
+	if len(matches) == 0 {
+		return nil // No changes
+	}
+
+	isNewFileRegex := regexp.MustCompile(`(?m)^new file mode`)
+
+	for i, match := range matches {
+		// Extract file path from the match (use b/ path which is the new path)
+		fileName := diffOutput[match[4]:match[5]]
+
+		if !isServiceFile(fileName) {
+			continue
+		}
+
+		// Get the content of this file's diff (from this match to the next, or to the end)
+		var patchContent string
+		if i < len(matches)-1 {
+			patchContent = diffOutput[match[0]:matches[i+1][0]]
+		} else {
+			patchContent = diffOutput[match[0]:]
+		}
+
+		normalizedPath := normalizeFilePath(fileName)
+
+		isNewFile := isNewFileRegex.MatchString(patchContent)
+
+		if err := parsePatch(normalizedPath, patchContent); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to parse patch for %s: %v\n", normalizedPath, err)
+			continue
+		}
+
+		changedFiles[normalizedPath] = true
+		if isNewFile {
+			newFiles[normalizedPath] = true
+		}
+	}
+
+	return nil
 }
