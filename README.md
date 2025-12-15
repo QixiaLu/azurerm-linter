@@ -1,15 +1,41 @@
-# Azurerm-linter
+# azurerm-linter
 
-A custom linter for the [terraform-provider-azurerm](https://github.com/hashicorp/terraform-provider-azurerm) codebase that enforces best practices and coding standards for Azure Terraform resources and data sources.
+The azurerm-linter tool is an AzureRM Provider code linting tool, specifically tailored for checking if the code is consistent with rules defined in `/contributing`.
 
-## Features
+## Lint Checks
 
-This linter includes several analyzers that check for common issues:
+For additional information about each check, see the documentation in each analyzer's directory (e.g., `passes/AZBP001/README.md`).
 
-- **AZC001**: Correct error func usage - Checks that pure string error should use `Errors.New()` instead of `fmt.Errorf()`
-- **AZC002**: String validation - Checks that TypeString fields have ValidateFunc or ValidateDiagFunc
-- **AZC003**: Optional+Computed comments - Validates that O+C fields have proper comment format
-- **AZC004**: MaxItems:1 flattening - Suggests flattening blocks with MaxItems:1 and single nested property
+### Azure Best Practice Checks
+
+| Check | Description |
+|-------|-------------|
+| AZBP001 | check that all String arguments have validation |
+| AZBP002 | check Optional+Computed fields follow conventions |
+
+### Azure New Resource Checks
+
+| Check | Description |
+|-------|-------------|
+| AZNR001 | check for Schema field ordering |
+
+### Azure Naming Rule Checks
+
+| Check | Description |
+|-------|-------------|
+| AZRN001 | check that percentage properties use _percentage suffix instead of _in_percent |
+
+### Azure Resource Error Checks
+
+| Check | Description |
+|-------|-------------|
+| AZRE001 | check for fixed error strings using fmt.Errorf instead of errors.New |
+
+### Azure Schema Design Checks
+
+| Check | Description |
+|-------|-------------|
+| AZSD001 | check MaxItems:1 blocks with single property should be flattened |
 
 ## Installation
 
@@ -23,7 +49,7 @@ This linter includes several analyzers that check for common issues:
 ```bash
 git clone https://github.com/QixiaLu/azurerm-linter.git
 cd azurerm-linter
-go build
+go build -o ./path/to/terraform-provider-azurerm
 ```
 
 This will create an `azurerm-linter.exe` executable (on Windows) or `azurerm-linter` (on Linux/macOS).
@@ -32,33 +58,55 @@ This will create an `azurerm-linter.exe` executable (on Windows) or `azurerm-lin
 
 ### Basic Usage
 
-Go to Azurerm repo directory:
-```bash
-cd ./path/to/terraform-provider-azurerm/internal/services/...
-```
-
-Under this directory, run linter against all services
+Run linter against all packages:
 
 ```bash
-./path/to/azurerm-linter ./internal/...
+cd ./path/to/terraform-provider-azurerm
+./azurerm-linter ./internal/services/...
 ```
 
-### Run Specific Analyzers
+### Check Only Changed Lines
 
-Go to Azurerm repo directory:
+The linter can analyze only the lines that have been modified.
+
+#### Check Local Git Changes
+
+Check only the lines changed in your current branch compared to the target branch:
+
 ```bash
-cd ./path/to/terraform-provider-azurerm/internal/services/...
+# Auto-detect remote and branch (defaults to upstream/main or origin/main)
+./azurerm-linter ./internal/services/...
+
+# Specify remote explicitly
+./azurerm-linter -remote=origin ./internal/services/...
+
+# Specify both remote and branch
+./azurerm-linter -remote=upstream -branch=main ./internal/services/...
+
+# Specify only the branch (remote will be auto-detected)
+./azurerm-linter -branch=main ./internal/services/...
 ```
 
-Run only specific checks using the analyzer name as a flag:
+#### Check GitHub Pull Request
+
+Check only the lines changed in a specific pull request:
 
 ```bash
-# Run only schema ordering check
-./path/to/azurerm-linter -AZC001 ./internal/services/compute/...
+# Use GitHub PR number
+./azurerm-linter -pr=1234 ./internal/services/...
 
-# Run only string validation check
-./path/to/azurerm-linter -AZC002 ./internal/services/...
-
-# Run multiple specific checks
-./path/to/azurerm-linter -AZC001 -AZC003 ./internal/...
+# Specify repository if not using default
+./azurerm-linter -pr=1234 -owner=hashicorp -repo=terraform-provider-azurerm ./internal/services/...
 ```
+
+#### Check from Diff File
+
+Check lines from a git diff file:
+
+```bash
+# Generate and use a diff file
+git diff main > changes.patch
+./azurerm-linter -changed-files=changes.patch ./internal/services/...
+```
+
+**Note**: When using any of the changed-line detection modes (`-remote`, `-pr`, `-changed-files`), the linter will only report issues on lines that were modified, making it easier to focus on reviewing new changes without noise from existing code.

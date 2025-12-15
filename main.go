@@ -18,7 +18,6 @@ func main() {
     // Initialize changed lines filter
     if err := changedlines.Initialize(); err != nil {
         fmt.Fprintf(os.Stderr, "Warning: failed to initialize changed lines filter: %v\n", err)
-        // Continue anyway - will check all lines
     }
 
     // Show filter stats if enabled

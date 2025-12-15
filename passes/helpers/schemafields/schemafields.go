@@ -6,7 +6,7 @@ import (
 
 	"github.com/bflad/tfproviderlint/helper/astutils"
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	"github.com/qixialu/azurerm-linter/passes/schemainfo"
+	"github.com/qixialu/azurerm-linter/passes/helpers/schemainfo"
 	"golang.org/x/tools/go/analysis"
 )
 

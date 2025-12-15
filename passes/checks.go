@@ -1,12 +1,12 @@
 package passes
 
 import (
-	"github.com/qixialu/azurerm-linter/passes/AZC001"
-	"github.com/qixialu/azurerm-linter/passes/AZC002"
-	"github.com/qixialu/azurerm-linter/passes/AZC003"
-	"github.com/qixialu/azurerm-linter/passes/AZC004"
-	"github.com/qixialu/azurerm-linter/passes/AZC005"
-	"github.com/qixialu/azurerm-linter/passes/AZC006"
+	"github.com/qixialu/azurerm-linter/passes/AZBP001"
+	"github.com/qixialu/azurerm-linter/passes/AZBP002"
+	"github.com/qixialu/azurerm-linter/passes/AZNR001"
+	"github.com/qixialu/azurerm-linter/passes/AZRE001"
+	"github.com/qixialu/azurerm-linter/passes/AZRN001"
+	"github.com/qixialu/azurerm-linter/passes/AZSD001"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -14,10 +14,10 @@ import (
 // This can be consumed via multichecker.Main(xpasses.AllChecks...) or by
 // combining these Analyzers with additional custom Analyzers
 var AllChecks = []*analysis.Analyzer{
-	AZC001.Analyzer,
-	AZC002.Analyzer,
-	AZC003.Analyzer,
-	AZC004.Analyzer,
-	AZC005.Analyzer,
-	AZC006.Analyzer,
+	AZBP001.Analyzer,
+	AZBP002.Analyzer,
+	AZNR001.Analyzer,
+	AZRE001.Analyzer,
+	AZRN001.Analyzer,
+	AZSD001.Analyzer,
 }
