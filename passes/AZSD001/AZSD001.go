@@ -8,6 +8,8 @@ import (
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
 	"github.com/qixialu/azurerm-linter/passes/util"
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
 )
 
 const Doc = `check MaxItems:1 blocks with single property should be flattened
@@ -44,9 +46,10 @@ Valid usage (with explanation):
 const analyzerName = "AZSD001"
 
 var Analyzer = &analysis.Analyzer{
-	Name: analyzerName,
-	Doc:  Doc,
-	Run:  run,
+	Name:     analyzerName,
+	Doc:      Doc,
+	Run:      run,
+	Requires: []*analysis.Analyzer{inspect.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -55,167 +58,173 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
+	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	if !ok {
+		return nil, nil
+	}
+	nodeFilter := []ast.Node{(*ast.CompositeLit)(nil)}
+
+	// Build file comments map for all files
+	fileCommentsMap := make(map[string][]*ast.CommentGroup)
 	for _, f := range pass.Files {
 		filename := pass.Fset.Position(f.Pos()).Filename
+		fileCommentsMap[filename] = f.Comments
+	}
 
-		if !changedlines.IsFileChanged(filename) {
-			continue
+	inspector.Preorder(nodeFilter, func(n ast.Node) {
+		comp, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return
 		}
 
-		if strings.HasSuffix(filename, "_test.go") {
-			continue
+		// Apply filename filtering
+		filename := pass.Fset.Position(comp.Pos()).Filename
+		if !changedlines.IsFileChanged(filename) || strings.HasSuffix(filename, "_test.go") {
+			return
 		}
 
-		ast.Inspect(f, func(n ast.Node) bool {
-			comp, ok := n.(*ast.CompositeLit)
+		// Check if this is a map[string]*schema.Schema
+		mapType, ok := comp.Type.(*ast.MapType)
+		if !ok {
+			return
+		}
+		if ident, ok := mapType.Key.(*ast.Ident); !ok || ident.Name != "string" {
+			return
+		}
+		starExpr, ok := mapType.Value.(*ast.StarExpr)
+		if !ok {
+			return
+		}
+		selExpr, ok := starExpr.X.(*ast.SelectorExpr)
+		if !ok || selExpr.Sel.Name != "Schema" {
+			return
+		}
+
+		// Check each field in the schema map
+		for _, elt := range comp.Elts {
+			kv, ok := elt.(*ast.KeyValueExpr)
 			if !ok {
-				return true
+				continue
 			}
 
-			// Check if this is a map[string]*schema.Schema
-			mapType, ok := comp.Type.(*ast.MapType)
+			keyLit, ok := kv.Key.(*ast.BasicLit)
+			if !ok || keyLit.Kind != token.STRING {
+				continue
+			}
+			fieldName := strings.Trim(keyLit.Value, `"`)
+
+			// Only check inline schema definitions
+			schemaLit, ok := kv.Value.(*ast.CompositeLit)
 			if !ok {
-				return true
-			}
-			if ident, ok := mapType.Key.(*ast.Ident); !ok || ident.Name != "string" {
-				return true
-			}
-			starExpr, ok := mapType.Value.(*ast.StarExpr)
-			if !ok {
-				return true
-			}
-			selExpr, ok := starExpr.X.(*ast.SelectorExpr)
-			if !ok || selExpr.Sel.Name != "Schema" {
-				return true
+				continue
 			}
 
-			// Check each field in the schema map
-			for _, elt := range comp.Elts {
-				kv, ok := elt.(*ast.KeyValueExpr)
+			// Look for MaxItems: 1 and Elem with nested schema
+			hasMaxItems1 := false
+			var elemValue ast.Expr
+
+			for _, fld := range schemaLit.Elts {
+				fieldKV, ok := fld.(*ast.KeyValueExpr)
+				if !ok {
+					continue
+				}
+				ident, ok := fieldKV.Key.(*ast.Ident)
 				if !ok {
 					continue
 				}
 
-				keyLit, ok := kv.Key.(*ast.BasicLit)
-				if !ok || keyLit.Kind != token.STRING {
-					continue
+				switch ident.Name {
+				case "MaxItems":
+					if lit, ok := fieldKV.Value.(*ast.BasicLit); ok && lit.Value == "1" {
+						hasMaxItems1 = true
+					}
+				case "Elem":
+					elemValue = fieldKV.Value
 				}
-				fieldName := strings.Trim(keyLit.Value, `"`)
+			}
 
-				// Only check inline schema definitions
-				schemaLit, ok := kv.Value.(*ast.CompositeLit)
+			// Only check if MaxItems: 1
+			if !hasMaxItems1 || elemValue == nil {
+				continue
+			}
+
+			// Check if Elem is &schema.Resource{...}
+			var resourceSchema *ast.CompositeLit
+
+			// Handle &schema.Resource{...}
+			if unary, ok := elemValue.(*ast.UnaryExpr); ok && unary.Op == token.AND {
+				if compLit, ok := unary.X.(*ast.CompositeLit); ok {
+					resourceSchema = compLit
+				}
+			}
+
+			if resourceSchema == nil {
+				continue
+			}
+
+			// Find the Schema field in the Resource
+			var nestedSchemaMap *ast.CompositeLit
+			for _, fld := range resourceSchema.Elts {
+				fieldKV, ok := fld.(*ast.KeyValueExpr)
 				if !ok {
 					continue
 				}
-
-				// Look for MaxItems: 1 and Elem with nested schema
-				hasMaxItems1 := false
-				var elemValue ast.Expr
-
-				for _, fld := range schemaLit.Elts {
-					fieldKV, ok := fld.(*ast.KeyValueExpr)
-					if !ok {
-						continue
+				if ident, ok := fieldKV.Key.(*ast.Ident); ok && ident.Name == "Schema" {
+					if compLit, ok := fieldKV.Value.(*ast.CompositeLit); ok {
+						nestedSchemaMap = compLit
 					}
-					ident, ok := fieldKV.Key.(*ast.Ident)
-					if !ok {
-						continue
-					}
+					break
+				}
+			}
 
-					switch ident.Name {
-					case "MaxItems":
-						if lit, ok := fieldKV.Value.(*ast.BasicLit); ok && lit.Value == "1" {
-							hasMaxItems1 = true
+			if nestedSchemaMap == nil {
+				continue
+			}
+
+			// Count properties in the nested schema
+			propertyCount := 0
+			for _, elt := range nestedSchemaMap.Elts {
+				if _, ok := elt.(*ast.KeyValueExpr); ok {
+					propertyCount++
+				}
+			}
+
+			// If only one property, check for any explanatory comment
+			if propertyCount == 1 {
+				hasComment := false
+				elemLine := pass.Fset.Position(elemValue.Pos()).Line
+
+				// Look for inline comments on the same line as Elem
+				comments := fileCommentsMap[filename]
+				for _, cg := range comments {
+					for _, c := range cg.List {
+						commentLine := pass.Fset.Position(c.Pos()).Line
+
+						// Check if comment is on the same line as Elem (inline comment)
+						if commentLine == elemLine {
+							hasComment = true
+							break
 						}
-					case "Elem":
-						elemValue = fieldKV.Value
 					}
-				}
-
-				// Only check if MaxItems: 1
-				if !hasMaxItems1 || elemValue == nil {
-					continue
-				}
-
-				// Check if Elem is &schema.Resource{...}
-				var resourceSchema *ast.CompositeLit
-
-				// Handle &schema.Resource{...}
-				if unary, ok := elemValue.(*ast.UnaryExpr); ok && unary.Op == token.AND {
-					if compLit, ok := unary.X.(*ast.CompositeLit); ok {
-						resourceSchema = compLit
-					}
-				}
-
-				if resourceSchema == nil {
-					continue
-				}
-
-				// Find the Schema field in the Resource
-				var nestedSchemaMap *ast.CompositeLit
-				for _, fld := range resourceSchema.Elts {
-					fieldKV, ok := fld.(*ast.KeyValueExpr)
-					if !ok {
-						continue
-					}
-					if ident, ok := fieldKV.Key.(*ast.Ident); ok && ident.Name == "Schema" {
-						if compLit, ok := fieldKV.Value.(*ast.CompositeLit); ok {
-							nestedSchemaMap = compLit
-						}
+					if hasComment {
 						break
 					}
 				}
 
-				if nestedSchemaMap == nil {
-					continue
-				}
-
-				// Count properties in the nested schema
-				propertyCount := 0
-				for _, elt := range nestedSchemaMap.Elts {
-					if _, ok := elt.(*ast.KeyValueExpr); ok {
-						propertyCount++
-					}
-				}
-
-				// If only one property, check for any explanatory comment
-				if propertyCount == 1 {
-					hasComment := false
-					elemLine := pass.Fset.Position(elemValue.Pos()).Line
-
-					// Look for inline comments on the same line as Elem
-					for _, cg := range f.Comments {
-						for _, c := range cg.List {
-							commentLine := pass.Fset.Position(c.Pos()).Line
-
-							// Check if comment is on the same line as Elem (inline comment)
-							if commentLine == elemLine {
-								hasComment = true
-								break
-							}
-						}
-						if hasComment {
-							break
-						}
-					}
-
-					if !hasComment {
-						pos := pass.Fset.Position(kv.Pos())
-						// Only report if this line is in the changed lines (or filter is disabled)
-						if changedlines.ShouldReport(pos.Filename, pos.Line) {
-							pass.Reportf(kv.Pos(), "%s: field %q has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
-								analyzerName, fieldName,
-								util.IssueLine("MaxItems: 1"),
-								util.FixedCode("flattening"),
-								util.FixedCode("'// Additional properties will be added per service team confirmation'"))
-						}
+				if !hasComment {
+					pos := pass.Fset.Position(kv.Pos())
+					// Only report if this line is in the changed lines (or filter is disabled)
+					if changedlines.ShouldReport(pos.Filename, pos.Line) {
+						pass.Reportf(kv.Pos(), "%s: field %q has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
+							analyzerName, fieldName,
+							util.IssueLine("MaxItems: 1"),
+							util.FixedCode("flattening"),
+							util.FixedCode("'// Additional properties will be added per service team confirmation'"))
 					}
 				}
 			}
-
-			return true
-		})
-	}
+		}
+	})
 
 	return nil, nil
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/qixialu/azurerm-linter/passes/helpers/schemainfo"
 	"github.com/qixialu/azurerm-linter/passes/util"
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
 )
 
 const analyzerName = "AZNR001"
@@ -31,9 +33,10 @@ var skipPackages = []string{"_test", "/migration", "/client", "/validate", "/tes
 var skipFileSuffix = []string{"_test.go", "registration.go"}
 
 var Analyzer = &analysis.Analyzer{
-	Name: analyzerName,
-	Doc:  Doc,
-	Run:  run,
+	Name:     analyzerName,
+	Doc:      Doc,
+	Run:      run,
+	Requires: []*analysis.Analyzer{inspect.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -46,17 +49,28 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	schemaInfo := schemainfo.GetSchemaInfo()
+	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	if !ok {
+		return nil, nil
+	}
+	nodeFilter := []ast.Node{(*ast.CompositeLit)(nil)}
 
+	// Build nested schemas map for all files
+	nestedSchemasMap := make(map[*ast.File]map[*ast.CompositeLit]bool)
 	for _, f := range pass.Files {
-		filename := pass.Fset.Position(f.Pos()).Filename
+		nestedSchemasMap[f] = schemafields.FindNestedSchemas(f)
+	}
 
-		if !changedlines.IsFileChanged(filename) {
-			continue
+	inspector.Preorder(nodeFilter, func(n ast.Node) {
+		comp, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return
 		}
 
-		// Skip non-newly added files
-		if !changedlines.IsNewFile(filename) {
-			continue
+		// Apply filename filtering
+		filename := pass.Fset.Position(comp.Pos()).Filename
+		if !changedlines.IsFileChanged(filename) || !changedlines.IsNewFile(filename) {
+			return
 		}
 
 		skipFile := false
@@ -67,49 +81,42 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 		if skipFile {
-			continue
+			return
 		}
 
-		nestedSchemas := schemafields.FindNestedSchemas(f)
+		// Check if it's a schema map
+		if !schemafields.IsSchemaMap(comp) {
+			return
+		}
 
-		ast.Inspect(f, func(n ast.Node) bool {
-			// Look for composite literals that might be schema maps
-			comp, ok := n.(*ast.CompositeLit)
-			if !ok {
-				return true
+		// Extract schema fields
+		fields := schemafields.ExtractFromCompositeLit(pass, comp, schemaInfo)
+		if len(fields) == 0 {
+			return
+		}
+
+		// Find which file this comp belongs to and check if nested
+		var isNested bool
+		for f, nestedSchemas := range nestedSchemasMap {
+			if comp.Pos() >= f.Pos() && comp.End() <= f.End() {
+				isNested = nestedSchemas[comp]
+				break
 			}
+		}
 
-			// Check if it's a schema map
-			if !schemafields.IsSchemaMap(comp) {
-				return true
+		// Check for ordering issues
+		expectedOrder, issue := checkOrderingIssues(fields, isNested)
+		if issue != "" {
+			actualOrder := make([]string, len(fields))
+			for i, f := range fields {
+				actualOrder[i] = f.Name
 			}
-
-			// Extract schema fields
-			fields := schemafields.ExtractFromCompositeLit(pass, comp, schemaInfo)
-			if len(fields) == 0 {
-				return true
-			}
-
-			// Check if this is a nested schema (inside Elem field)
-			// Nested schemas should not be checked for ID fields and location ordering
-			isNested := nestedSchemas[comp]
-
-			// Check for ordering issues
-			expectedOrder, issue := checkOrderingIssues(fields, isNested)
-			if issue != "" {
-				actualOrder := make([]string, len(fields))
-				for i, f := range fields {
-					actualOrder[i] = f.Name
-				}
-				pass.Reportf(comp.Pos(), "%s: %s\nExpected order:\n  %s\nActual order:\n  %s\n",
-					analyzerName, issue,
-					util.FixedCode(strings.Join(expectedOrder, ", ")),
-					util.IssueLine(strings.Join(actualOrder, ", ")))
-			}
-
-			return true
-		})
-	}
+			pass.Reportf(comp.Pos(), "%s: %s\nExpected order:\n  %s\nActual order:\n  %s\n",
+				analyzerName, issue,
+				util.FixedCode(strings.Join(expectedOrder, ", ")),
+				util.IssueLine(strings.Join(actualOrder, ", ")))
+		}
+	})
 
 	return nil, nil
 }
