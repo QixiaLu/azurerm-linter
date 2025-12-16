@@ -89,14 +89,15 @@ func parsePatch(filePath string, patchContent string) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Check for hunk header
 		if matches := hunkRegex.FindStringSubmatch(line); matches != nil {
-			startLine, _ := strconv.Atoi(matches[1])
+			startLine, err := strconv.Atoi(matches[1])
+			if err != nil {
+				continue
+			}
 			currentLine = startLine
 			inHunk = true
 			continue
 		}
-
 		if !inHunk {
 			continue
 		}
@@ -179,12 +180,12 @@ func IsNewFile(filename string) bool {
 	defer mu.RUnlock()
 
 	if !initialized || len(newFiles) == 0 {
-		return false
+		return true
 	}
 
 	relPath := normalizeFilePath(filename)
 	if !isServiceFile(relPath) {
-		return false
+		return true
 	}
 
 	return newFiles[relPath]

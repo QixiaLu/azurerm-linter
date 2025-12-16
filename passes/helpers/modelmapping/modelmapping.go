@@ -75,11 +75,7 @@ func findModelTypeFromModelObject(pass *analysis.Pass, file *ast.File) *types.St
 			return true
 		})
 
-		if modelType != nil {
-			return false
-		}
-
-		return true
+		return modelType == nil
 	})
 
 	return modelType

@@ -78,11 +78,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					pos := pass.Fset.Position(kv.Pos())
 					// Only report if this line is in the changed lines (or filter is disabled)
 					if changedlines.ShouldReport(pos.Filename, pos.Line) {
-						pass.Reportf(kv.Pos(), "%s: field %q should use %s suffix instead of %s (suggested: %s)\n",
+						pass.Reportf(kv.Pos(), "%s: field %q should use %s suffix instead of %s (suggested: %q)\n",
 							analyzerName, fieldName,
 							util.FixedCode("'_percentage'"),
 							util.IssueLine("'_in_percent'"),
-							util.FixedCode(suggestedName))
+							suggestedName)
 					}
 				}
 			}

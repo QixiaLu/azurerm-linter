@@ -16,7 +16,7 @@ Schema fields must be ordered as follows:
 4. **Optional fields** - Sorted alphabetically  
 5. **Computed fields** - Sorted alphabetically (in typed resources, these should be in the `Attributes()` method)
 
-**Note:** This analyzer only checks the ordering of `name`, `resource_group_name`, and `location` fields. Other ID fields and required fields ordering in top level are not validated.
+**Note:** This analyzer only checks the ordering of `name`, `resource_group_name`, and `location` fields. Other ID fields and required fields ordering in top level are not validated. This analyzer only runs on the newly created file if the git diffs filter is enabled
 
 ## Flagged Code
 

@@ -22,10 +22,7 @@ type PRFile struct {
 // initializeFromGitHubAPI initializes changed lines tracking from GitHub API
 func initializeFromGitHubAPI() error {
 	token := os.Getenv("GITHUB_TOKEN")
-	owner, name, err := getRepoInfo()
-	if err != nil {
-		return err
-	}
+	owner, name := getRepoInfo()
 
 	prNum, err := getPRNumber()
 	if err != nil {
@@ -85,10 +82,17 @@ func fetchPRFiles(token, owner, name string, prNum int) ([]PRFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("GitHub API returned status %d, failed to read body: %w", resp.StatusCode, err)
+		}
 		return nil, fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -101,7 +105,7 @@ func fetchPRFiles(token, owner, name string, prNum int) ([]PRFile, error) {
 }
 
 // getRepoInfo gets the repository owner and name
-func getRepoInfo() (owner, name string, err error) {
+func getRepoInfo() (owner, name string) {
 	owner = "hashicorp"
 	name = "terraform-provider-azurerm"
 
@@ -116,7 +120,7 @@ func getRepoInfo() (owner, name string, err error) {
 		}
 	}
 
-	return owner, name, nil
+	return owner, name
 }
 
 // getPRNumber gets the PR number from flags or environment

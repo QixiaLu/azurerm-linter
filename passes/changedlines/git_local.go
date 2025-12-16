@@ -19,7 +19,7 @@ func initializeFromGit() error {
 
 	fmt.Fprintf(os.Stderr, "Using git method (local mode)\n")
 
-	targetCommit, worktree, err := resolveForLocal(repo)
+	targetCommit, _, err := resolveForLocal(repo)
 	if err != nil {
 		return fmt.Errorf("failed to resolve target: %w", err)
 	}
@@ -27,7 +27,7 @@ func initializeFromGit() error {
 	fmt.Fprintf(os.Stderr, "Comparing: %s..worktree (includes uncommitted changes)\n",
 		targetCommit.Hash.String()[:7])
 
-	if err := processDiffWithWorktree(repo, targetCommit, worktree); err != nil {
+	if err := processDiffWithWorktree(targetCommit); err != nil {
 		return fmt.Errorf("failed to process diff: %w", err)
 	}
 
@@ -38,7 +38,7 @@ func initializeFromGit() error {
 }
 
 // processDiffWithWorktree compares a commit with the current worktree using git diff
-func processDiffWithWorktree(repo *git.Repository, baseCommit *object.Commit, worktree *git.Worktree) error {
+func processDiffWithWorktree(baseCommit *object.Commit) error {
 	cmd := exec.Command("git", "diff", baseCommit.Hash.String())
 	output, err := cmd.Output()
 	if err != nil {
@@ -208,24 +208,4 @@ func autoDetectRemote(repo *git.Repository) (string, error) {
 	}
 
 	return "", fmt.Errorf("no suitable remote found (origin or upstream)")
-}
-
-// splitContentLines splits content into lines
-func splitContentLines(content string) []string {
-	if content == "" {
-		return nil
-	}
-
-	var lines []string
-	start := 0
-	for i := 0; i < len(content); i++ {
-		if content[i] == '\n' {
-			lines = append(lines, content[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(content) {
-		lines = append(lines, content[start:])
-	}
-	return lines
 }

@@ -62,7 +62,7 @@ Run linter against all packages:
 
 ```bash
 cd ./path/to/terraform-provider-azurerm
-./azurerm-linter ./internal/services/...
+./azurerm-linter -use-git-repo=false ./internal/services/...
 ```
 
 ### Check Only Changed Lines

@@ -49,7 +49,7 @@ func IsSchemaMap(comp *ast.CompositeLit) bool {
 // ExtractFromCompositeLit extracts schema fields from a map[string]*schema.Schema composite literal
 // parentField is the name of the parent field (e.g., "Elem") if this schema is nested, empty string otherwise
 func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schemaInfo *schemainfo.SchemaInfo) []SchemaField {
-	var fields []SchemaField
+	fields := make([]SchemaField, 0, len(smap.Elts))
 
 	for i, elt := range smap.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
@@ -71,7 +71,6 @@ func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schema
 		// Try to parse the value - it could be either:
 		// 1. A composite literal: &schema.Schema{...}
 		// 2. A function call: commonschema.ResourceGroupName()
-
 		switch v := kv.Value.(type) {
 		case *ast.CompositeLit:
 			// Direct schema definition
@@ -81,9 +80,6 @@ func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schema
 			field.Computed = schema.Schema.Computed
 
 		case *ast.CallExpr:
-			// Function call - try multiple resolution strategies
-			resolved := false
-
 			// Strategy 1: Try to get from schemainfo cache (for cross-package functions)
 			if selExpr, ok := v.Fun.(*ast.SelectorExpr); ok {
 				if pkgIdent, ok := selExpr.X.(*ast.Ident); ok {
@@ -95,7 +91,7 @@ func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schema
 								field.Required = props.Required
 								field.Optional = props.Optional
 								field.Computed = props.Computed
-								resolved = true
+								continue
 							}
 						}
 					}
@@ -103,13 +99,10 @@ func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schema
 			}
 
 			// Strategy 2: Try to resolve from same-package function definition
-			if !resolved {
-				if resolvedSchema := resolveSchemaFromFuncCall(pass, v); resolvedSchema != nil {
-					field.Required = resolvedSchema.Schema.Required
-					field.Optional = resolvedSchema.Schema.Optional
-					field.Computed = resolvedSchema.Schema.Computed
-					resolved = true
-				}
+			if resolvedSchema := resolveSchemaFromFuncCall(pass, v); resolvedSchema != nil {
+				field.Required = resolvedSchema.Schema.Required
+				field.Optional = resolvedSchema.Schema.Optional
+				field.Computed = resolvedSchema.Schema.Computed
 			}
 		default:
 			// Unknown type, skip

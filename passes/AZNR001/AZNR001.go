@@ -2,11 +2,9 @@ package AZNR001
 
 import (
 	"go/ast"
-	"go/types"
 	"sort"
 	"strings"
 
-	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
 	"github.com/qixialu/azurerm-linter/passes/helpers/schemafields"
 	"github.com/qixialu/azurerm-linter/passes/helpers/schemainfo"
@@ -50,7 +48,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	schemaInfo := pass.ResultOf[schemainfo.Analyzer].(*schemainfo.SchemaInfo)
+	schemaInfo, ok := pass.ResultOf[schemainfo.Analyzer].(*schemainfo.SchemaInfo)
+	if !ok {
+		return nil, nil
+	}
 
 	for _, f := range pass.Files {
 		filename := pass.Fset.Position(f.Pos()).Filename
@@ -64,10 +65,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
+		skipFile := false
 		for _, skip := range skipFileSuffix {
 			if strings.HasSuffix(filename, skip) {
-				continue
+				skipFile = true
+				break
 			}
+		}
+		if skipFile {
+			continue
 		}
 
 		nestedSchemas := schemafields.FindNestedSchemas(f)
@@ -112,85 +118,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	return nil, nil
-}
-
-// resolveSchemaFromFuncCall attempts to resolve schema info from a function call
-func resolveSchemaFromFuncCall(pass *analysis.Pass, call *ast.CallExpr) *schema.SchemaInfo {
-	// Get the function selector
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return nil
-	}
-
-	// Get the function object from TypesInfo
-	funcObj := pass.TypesInfo.Uses[sel.Sel]
-	if funcObj == nil {
-		return nil
-	}
-
-	// Get the function declaration
-	funcDecl := findFuncDecl(pass, funcObj)
-	if funcDecl == nil {
-		return nil
-	}
-
-	// Look for return statement that returns a schema
-	var returnedSchema *ast.CompositeLit
-	ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
-		if ret, ok := n.(*ast.ReturnStmt); ok && len(ret.Results) > 0 {
-			// Check if the return value is a composite literal or unary expression (&schema.Schema{...})
-			var expr ast.Expr = ret.Results[0]
-
-			// Handle &schema.Schema{...}
-			if unary, ok := expr.(*ast.UnaryExpr); ok && unary.Op.String() == "&" {
-				expr = unary.X
-			}
-
-			// Check if it's a composite literal
-			if comp, ok := expr.(*ast.CompositeLit); ok {
-				returnedSchema = comp
-				return false // Stop inspection
-			}
-		}
-		return true
-	})
-
-	if returnedSchema == nil {
-		return nil
-	}
-
-	// Parse the returned schema
-	return schema.NewSchemaInfo(returnedSchema, pass.TypesInfo)
-}
-
-// findFuncDecl finds the function declaration for a given function object
-func findFuncDecl(pass *analysis.Pass, funcObj interface{}) *ast.FuncDecl {
-	// Convert to types.Object to get position
-	obj, ok := funcObj.(types.Object)
-	if !ok {
-		return nil
-	}
-
-	objPos := obj.Pos()
-
-	// Search in all files in the pass (same package)
-	for _, file := range pass.Files {
-		for _, decl := range file.Decls {
-			if funcDecl, ok := decl.(*ast.FuncDecl); ok {
-				if funcDecl.Name != nil {
-					declPos := pass.Fset.Position(funcDecl.Pos())
-					targetPos := pass.Fset.Position(objPos)
-
-					if declPos.Filename == targetPos.Filename &&
-						declPos.Line == targetPos.Line {
-						return funcDecl
-					}
-				}
-			}
-		}
-	}
-
-	return nil
 }
 
 // checkOrderingIssues validates field ordering according to the rules:
@@ -248,17 +175,14 @@ func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string
 				continue
 			}
 
-			isRequired := field.Required
-			isOptional := field.Optional
-			isComputed := field.Computed && !field.Optional && !field.Required
-
-			if isRequired {
-				requiredFields = append(requiredFields, field.Name)
-			} else if isOptional {
-				optionalFields = append(optionalFields, field.Name)
-			} else if isComputed {
-				computedFields = append(computedFields, field.Name)
-			}
+		switch {
+		case field.Required:
+			requiredFields = append(requiredFields, field.Name)
+		case field.Optional:
+			optionalFields = append(optionalFields, field.Name)
+		case field.Computed:
+			computedFields = append(computedFields, field.Name)
+		}
 		}
 
 		// Required fields maintain their original order
@@ -277,15 +201,12 @@ func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string
 		var computedFields []string
 
 		for _, field := range fields {
-			isRequired := field.Required
-			isOptional := field.Optional
-			isComputed := field.Computed && !field.Optional && !field.Required
-
-			if isRequired {
+			switch {
+			case field.Required:
 				requiredFields = append(requiredFields, field.Name)
-			} else if isOptional {
+			case field.Optional:
 				optionalFields = append(optionalFields, field.Name)
-			} else if isComputed {
+			case field.Computed:
 				computedFields = append(computedFields, field.Name)
 			}
 		}

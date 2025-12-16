@@ -4,7 +4,6 @@ import (
 	"go/ast"
 	"go/token"
 	"reflect"
-	"strings"
 	"sync"
 
 	"golang.org/x/tools/go/analysis"
@@ -94,35 +93,6 @@ func parseHelperPackage(helperPkg *packages.Package, info *SchemaInfo) {
 	}
 }
 
-// Old implementation kept for reference - now using direct load
-func runOld(pass *analysis.Pass) (interface{}, error) {
-	info := &SchemaInfo{
-		Functions: make(map[string]SchemaProperties),
-	}
-
-	// Find commonschema and other helper packages in imports
-	for _, imp := range pass.Pkg.Imports() {
-		if strings.HasSuffix(imp.Path(), "commonschema") ||
-			strings.Contains(imp.Path(), "helpers") {
-			// Load the package with full syntax
-			cfg := &packages.Config{
-				Mode: packages.LoadAllSyntax,
-				Fset: pass.Fset,
-			}
-
-			pkgs, err := packages.Load(cfg, imp.Path())
-			if err != nil || len(pkgs) == 0 {
-				continue
-			}
-
-			helperPkg := pkgs[0]
-			parseHelperPackage(helperPkg, info)
-		}
-	}
-
-	return info, nil
-}
-
 func extractSchemaPropertiesFromFunc(funcDecl *ast.FuncDecl) *SchemaProperties {
 	var props SchemaProperties
 
@@ -139,7 +109,9 @@ func extractSchemaPropertiesFromFunc(funcDecl *ast.FuncDecl) *SchemaProperties {
 		switch expr := ret.Results[0].(type) {
 		case *ast.UnaryExpr:
 			if expr.Op == token.AND {
-				compLit, _ = expr.X.(*ast.CompositeLit)
+				if cl, ok := expr.X.(*ast.CompositeLit); ok {
+					compLit = cl
+				}
 			}
 		case *ast.CompositeLit:
 			compLit = expr
