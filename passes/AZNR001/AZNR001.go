@@ -27,16 +27,13 @@ Schema fields should be ordered as follows:
 4. Optional fields, sorted alphabetically.
 5. Computed fields, sorted alphabetically.`
 
-var skipPackages = []string{"/migration", "/client", "/validate", "/test-data", "/parse", "/models"}
+var skipPackages = []string{"_test", "/migration", "/client", "/validate", "/test-data", "/parse", "/models"}
 var skipFileSuffix = []string{"_test.go", "registration.go"}
 
 var Analyzer = &analysis.Analyzer{
 	Name: analyzerName,
 	Doc:  Doc,
-	Requires: []*analysis.Analyzer{
-		schemainfo.Analyzer,
-	},
-	Run: run,
+	Run:  run,
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -48,10 +45,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	schemaInfo, ok := pass.ResultOf[schemainfo.Analyzer].(*schemainfo.SchemaInfo)
-	if !ok {
-		return nil, nil
-	}
+	schemaInfo := schemainfo.GetSchemaInfo()
 
 	for _, f := range pass.Files {
 		filename := pass.Fset.Position(f.Pos()).Filename
@@ -175,14 +169,14 @@ func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string
 				continue
 			}
 
-		switch {
-		case field.Required:
-			requiredFields = append(requiredFields, field.Name)
-		case field.Optional:
-			optionalFields = append(optionalFields, field.Name)
-		case field.Computed:
-			computedFields = append(computedFields, field.Name)
-		}
+			switch {
+			case field.Required:
+				requiredFields = append(requiredFields, field.Name)
+			case field.Optional:
+				optionalFields = append(optionalFields, field.Name)
+			case field.Computed:
+				computedFields = append(computedFields, field.Name)
+			}
 		}
 
 		// Required fields maintain their original order
@@ -224,6 +218,11 @@ func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string
 }
 
 func validateOrder(fields []schemafields.SchemaField, expectedOrder []string, isNested bool) string {
+	if len(fields) != len(expectedOrder) {
+		// Skip if len is not equal, it might because the schema is defined in another package, except commonschema
+		return ""
+	}
+
 	if !isNested {
 		// For top-level schemas, check relative positions of name, resource_group_name, location
 		fieldMap := make(map[string]int)
@@ -292,10 +291,6 @@ func validateOrder(fields []schemafields.SchemaField, expectedOrder []string, is
 	actualOrder := make([]string, len(fields))
 	for i, f := range fields {
 		actualOrder[i] = f.Name
-	}
-
-	if len(actualOrder) != len(expectedOrder) {
-		return "schema fields are not in the correct order"
 	}
 
 	for i := range actualOrder {

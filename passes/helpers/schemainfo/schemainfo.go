@@ -3,10 +3,8 @@ package schemainfo
 import (
 	"go/ast"
 	"go/token"
-	"reflect"
 	"sync"
 
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -22,49 +20,35 @@ type SchemaProperties struct {
 	Computed bool
 }
 
-var Analyzer = &analysis.Analyzer{
-	Name:       "schemainfo",
-	Doc:        "extracts schema information from commonschema and other helper packages",
-	Run:        run,
-	ResultType: reflect.TypeOf(&SchemaInfo{}),
-}
-
 // Global cache for schema info
 var (
 	cachedSchemaInfo *SchemaInfo
-	cacheMutex       sync.Mutex
-	cacheInitialized bool
+	once             sync.Once
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
-	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
+// GetSchemaInfo returns cached schema information, loading it on first call
+func GetSchemaInfo() *SchemaInfo {
+	once.Do(func() {
+		cachedSchemaInfo = loadSchemaInfo()
+	})
+	return cachedSchemaInfo
+}
 
-	// Return cached result if already initialized
-	if cacheInitialized {
-		return cachedSchemaInfo, nil
-	}
-
+func loadSchemaInfo() *SchemaInfo {
 	info := &SchemaInfo{
 		Functions: make(map[string]SchemaProperties),
 	}
 
-	// Directly load commonschema package (don't rely on imports)
 	cfg := &packages.Config{
 		Mode: packages.LoadAllSyntax,
 	}
 
-	// Load commonschema package
 	pkgs, err := packages.Load(cfg, "github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema")
 	if err == nil && len(pkgs) > 0 {
 		parseHelperPackage(pkgs[0], info)
 	}
 
-	// Cache the result
-	cachedSchemaInfo = info
-	cacheInitialized = true
-
-	return info, nil
+	return info
 }
 
 func parseHelperPackage(helperPkg *packages.Package, info *SchemaInfo) {
