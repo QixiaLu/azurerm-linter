@@ -35,11 +35,9 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Run tests
-        run: go test ./passes/... -v
+      # Prevent GOPROXY=off errors for tests
+      - run: for moddir in {,x}passes/*/testdata; do pushd $moddir; go mod download; popd; done
+      - run: go test ./...
 
   build:
     name: Build
