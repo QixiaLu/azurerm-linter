@@ -35,6 +35,9 @@ jobs:
         with:
           go-version: '1.21'
 
+      - name: Download dependencies
+        run: go mod download
+
       - name: Run tests
         run: go test ./passes/... -v
 
