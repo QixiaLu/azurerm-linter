@@ -40,7 +40,7 @@ func loadSchemaInfo() *SchemaInfo {
 	}
 
 	cfg := &packages.Config{
-		Mode: packages.LoadAllSyntax,
+		Mode: packages.LoadSyntax,
 	}
 
 	pkgs, err := packages.Load(cfg, "github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema")
