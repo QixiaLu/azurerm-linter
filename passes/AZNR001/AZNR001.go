@@ -36,7 +36,7 @@ var Analyzer = &analysis.Analyzer{
 	Name:     analyzerName,
 	Doc:      Doc,
 	Run:      run,
-	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	Requires: []*analysis.Analyzer{inspect.Analyzer, schemainfo.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -48,11 +48,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	schemaInfo := schemainfo.GetSchemaInfo()
 	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	if !ok {
 		return nil, nil
 	}
+	schemaInfo, ok := pass.ResultOf[schemainfo.Analyzer].(*schemainfo.SchemaInfo)
+	if !ok {
+		return nil, nil
+	}
+
 	nodeFilter := []ast.Node{(*ast.CompositeLit)(nil)}
 
 	// Build nested schemas map for all files
@@ -226,7 +230,8 @@ func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string
 
 func validateOrder(fields []schemafields.SchemaField, expectedOrder []string, isNested bool) string {
 	if len(fields) != len(expectedOrder) {
-		// Skip if len is not equal, it might because the schema is defined in another package, except commonschema
+		// Skip if len is not equal, it happens when it's failed to extract field's properties;
+		// it might because the schema is defined in another package, except commonschema
 		return ""
 	}
 

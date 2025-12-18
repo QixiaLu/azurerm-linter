@@ -94,3 +94,11 @@ func resourceWithBadNestedSchema() *schema.Resource {
 		},
 	}
 }
+
+// Helper function from same package but different file scope
+func GetPercentageSchema() *schema.Schema {
+    return &schema.Schema{
+        Type:     schema.TypeInt,
+        Optional: true,
+    }
+}

@@ -1,10 +1,16 @@
 package schemainfo
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"sync"
 
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -20,31 +26,99 @@ type SchemaProperties struct {
 	Computed bool
 }
 
-// Global cache for schema info
-var (
-	cachedSchemaInfo *SchemaInfo
-	once             sync.Once
-)
-
-// GetSchemaInfo returns cached schema information, loading it on first call
-func GetSchemaInfo() *SchemaInfo {
-	once.Do(func() {
-		cachedSchemaInfo = loadSchemaInfo()
-	})
-	return cachedSchemaInfo
+var Analyzer = &analysis.Analyzer{
+	Name:       "schemainfo",
+	Doc:        "extracts schema information from commonschema and other helper packages",
+	Run:        run,
+	ResultType: reflect.TypeOf(&SchemaInfo{}),
 }
 
-func loadSchemaInfo() *SchemaInfo {
+// Global cache for schema info - loaded only once successfully
+var (
+	globalSchemaInfo *SchemaInfo
+	loadOnce         sync.Once
+	loadMutex        sync.RWMutex
+)
+
+func run(pass *analysis.Pass) (interface{}, error) {
+	loadMutex.RLock()
+	if globalSchemaInfo != nil && len(globalSchemaInfo.Functions) > 0 {
+		loadMutex.RUnlock()
+		return globalSchemaInfo, nil
+	}
+	loadMutex.RUnlock()
+
+	loadOnce.Do(func() {
+		loadMutex.Lock()
+		defer loadMutex.Unlock()
+		info := loadSchemaInfo(pass)
+		if len(info.Functions) > 0 {
+			globalSchemaInfo = info
+		}
+	})
+
+	loadMutex.RLock()
+	defer loadMutex.RUnlock()
+	if globalSchemaInfo != nil {
+		return globalSchemaInfo, nil
+	}
+
+	// Return empty info if load failed
+	return &SchemaInfo{Functions: make(map[string]SchemaProperties)}, nil
+}
+
+func loadSchemaInfo(pass *analysis.Pass) *SchemaInfo {
 	info := &SchemaInfo{
 		Functions: make(map[string]SchemaProperties),
 	}
 
-	cfg := &packages.Config{
-		Mode: packages.LoadSyntax,
+	if len(pass.Files) == 0 {
+		return info
 	}
 
-	pkgs, err := packages.Load(cfg, "github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema")
-	if err == nil && len(pkgs) > 0 {
+	// Get the file path from the first file in the package
+	filePath := pass.Fset.Position(pass.Files[0].Pos()).Filename
+	if strings.Contains(filePath, "go-build") || strings.Contains(filePath, "AppData") {
+		return info
+	}
+
+	// Traverse up to find the directory containing "internal"
+	dir := filepath.Dir(filePath)
+	foundInternal := false
+	for dir != "" && dir != "." && dir != string(filepath.Separator) {
+		base := filepath.Base(dir)
+		if base == "internal" {
+			// Go up one more level to get the repo root
+			dir = filepath.Dir(dir)
+			foundInternal = true
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return info
+		}
+		dir = parent
+	}
+
+	if !foundInternal {
+		return info
+	}
+
+	vendorPath := filepath.Join(dir, "vendor", "github.com", "hashicorp", "go-azure-helpers", "resourcemanager", "commonschema")
+	if _, err := os.Stat(vendorPath); os.IsNotExist(err) {
+		return info
+	}
+
+	cfg := &packages.Config{
+		Mode: packages.LoadAllSyntax,
+		Dir:  vendorPath,
+	}
+
+	// Load commonschema package from vendor
+	pkgs, err := packages.Load(cfg, "./...")
+	if err != nil {
+		fmt.Printf("[schemainfo] Error loading package: %v\n", err)
+	} else {
 		parseHelperPackage(pkgs[0], info)
 	}
 

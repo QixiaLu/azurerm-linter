@@ -78,8 +78,9 @@ func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schema
 			field.Required = schema.Schema.Required
 			field.Optional = schema.Schema.Optional
 			field.Computed = schema.Schema.Computed
-
 		case *ast.CallExpr:
+			found := false
+
 			// Strategy 1: Try to get from schemainfo cache (for cross-package functions)
 			if selExpr, ok := v.Fun.(*ast.SelectorExpr); ok {
 				if pkgIdent, ok := selExpr.X.(*ast.Ident); ok {
@@ -91,18 +92,20 @@ func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schema
 								field.Required = props.Required
 								field.Optional = props.Optional
 								field.Computed = props.Computed
-								continue
+								found = true
 							}
 						}
 					}
 				}
 			}
 
-			// Strategy 2: Try to resolve from same-package function definition
-			if resolvedSchema := resolveSchemaFromFuncCall(pass, v); resolvedSchema != nil {
-				field.Required = resolvedSchema.Schema.Required
-				field.Optional = resolvedSchema.Schema.Optional
-				field.Computed = resolvedSchema.Schema.Computed
+			// Strategy 2: Try to resolve from same-package function definition (if not found in cache)
+			if !found {
+				if resolvedSchema := resolveSchemaFromFuncCall(pass, v); resolvedSchema != nil {
+					field.Required = resolvedSchema.Schema.Required
+					field.Optional = resolvedSchema.Schema.Optional
+					field.Computed = resolvedSchema.Schema.Computed
+				}
 			}
 		default:
 			// Unknown type, skip
@@ -225,30 +228,29 @@ func resolveSchemaFromFuncCall(pass *analysis.Pass, call *ast.CallExpr) *schema.
 }
 
 // findFuncDecl finds the function declaration for a given function object
-func findFuncDecl(pass *analysis.Pass, funcObj interface{}) *ast.FuncDecl {
-	// Convert to types.Object to get position
-	obj, ok := funcObj.(types.Object)
+func findFuncDecl(pass *analysis.Pass, funcObj types.Object) *ast.FuncDecl {
+	obj, ok := funcObj.(*types.Func)
 	if !ok {
 		return nil
 	}
 
-	objPos := obj.Pos()
+	pos := obj.Pos()
 
-	// Search in all files in the pass (same package)
 	for _, file := range pass.Files {
-		for _, decl := range file.Decls {
-			if funcDecl, ok := decl.(*ast.FuncDecl); ok {
-				if funcDecl.Name != nil {
-					// Get the position of this function declaration
-					declPos := pass.Fset.Position(funcDecl.Pos())
-					targetPos := pass.Fset.Position(objPos)
+		// Check if the position is within this file's range
+		if pos < file.Pos() || pos > file.End() {
+			continue
+		}
 
-					// Compare file and position
-					if declPos.Filename == targetPos.Filename &&
-						declPos.Line == targetPos.Line {
-						return funcDecl
-					}
-				}
+		for _, decl := range file.Decls {
+			funcDecl, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+
+			// Match by function name position
+			if funcDecl.Name.Pos() == pos {
+				return funcDecl
 			}
 		}
 	}
