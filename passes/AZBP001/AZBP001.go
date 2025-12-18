@@ -4,8 +4,8 @@ import (
 	"go/ast"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	"github.com/qixialu/azurerm-linter/passes/changedlines"
-	localschema "github.com/qixialu/azurerm-linter/passes/helpers/schema/localSchemaInfos"
+	"github.com/qixialu/azurerm-linter/loader"
+	localschema "github.com/qixialu/azurerm-linter/passes/helpers/localSchemaInfos"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -67,7 +67,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 		if !hasValidation {
 			pos := pass.Fset.Position(schemaLit.Pos())
-			if changedlines.ShouldReport(pos.Filename, pos.Line) {
+			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(schemaLit.Pos(), "%s: string argument %q must have ValidateFunc\n",
 					analyzerName, propertyName)
 			}

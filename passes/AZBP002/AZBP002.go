@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	"github.com/qixialu/azurerm-linter/passes/changedlines"
-	localschema "github.com/qixialu/azurerm-linter/passes/helpers/schema/localSchemaInfos"
-	"github.com/qixialu/azurerm-linter/passes/util"
+	"github.com/qixialu/azurerm-linter/helpers"
+	"github.com/qixialu/azurerm-linter/loader"
+	localschema "github.com/qixialu/azurerm-linter/passes/helpers/localSchemaInfos"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -78,11 +78,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		// Check order: Optional should come before Computed
 		if optionalPos > computedPos {
 			pos := pass.Fset.Position(schemaLit.Pos())
-			if changedlines.ShouldReport(pos.Filename, pos.Line) {
+			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(schemaLit.Pos(), "%s: field %q has %s and %s in wrong order (%s must come before %s)",
 					analyzerName, fieldName,
-					util.FixedCode("Optional"), util.IssueLine("Computed"),
-					util.FixedCode("Optional"), util.IssueLine("Computed"))
+					helpers.FixedCode("Optional"), helpers.IssueLine("Computed"),
+					helpers.FixedCode("Optional"), helpers.IssueLine("Computed"))
 			}
 			continue
 		}
@@ -111,9 +111,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 		if !hasOCComment {
 			pos := pass.Fset.Position(schemaLit.Pos())
-			if changedlines.ShouldReport(pos.Filename, pos.Line) {
+			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(schemaLit.Pos(), "%s: field %q is Optional+Computed but missing required comment. Add %s between Optional and Computed\n",
-					analyzerName, fieldName, util.FixedCode("'// NOTE: O+C - <explanation>'"))
+					analyzerName, fieldName, helpers.FixedCode("'// NOTE: O+C - <explanation>'"))
 			}
 		}
 	}

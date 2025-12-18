@@ -6,14 +6,12 @@ import (
 	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	"github.com/qixialu/azurerm-linter/passes/changedlines"
-	"github.com/qixialu/azurerm-linter/passes/helpers/schemafields"
+	"github.com/qixialu/azurerm-linter/helpers"
+	"github.com/qixialu/azurerm-linter/loader"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
-
-const Doc = `Gather all inline schema infos declared in the package`
 
 const analyzerName = "localSchemaInfos"
 
@@ -24,7 +22,7 @@ type SchemaInfoWithName struct {
 
 var Analyzer = &analysis.Analyzer{
 	Name:       analyzerName,
-	Doc:        Doc,
+	Doc:        "Gather all inline schema infos declared in the package",
 	Run:        run,
 	Requires:   []*analysis.Analyzer{inspect.Analyzer},
 	ResultType: reflect.TypeOf(map[*ast.CompositeLit]*SchemaInfoWithName{}),
@@ -59,7 +57,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		filename := pass.Fset.Position(comp.Pos()).Filename
-		if !changedlines.IsFileChanged(filename) {
+		if !loader.IsFileChanged(filename) {
 			return
 		}
 
@@ -75,7 +73,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Skip if it's not a schemaMap
-		if !schemafields.IsSchemaMap(comp) {
+		if !helpers.IsSchemaMap(comp) {
 			return
 		}
 

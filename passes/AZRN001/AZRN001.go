@@ -4,9 +4,9 @@ import (
 	"go/ast"
 	"strings"
 
-	"github.com/qixialu/azurerm-linter/passes/changedlines"
-	localschema "github.com/qixialu/azurerm-linter/passes/helpers/schema/localSchemaInfos"
-	"github.com/qixialu/azurerm-linter/passes/util"
+	"github.com/qixialu/azurerm-linter/helpers"
+	"github.com/qixialu/azurerm-linter/loader"
+	localschema "github.com/qixialu/azurerm-linter/passes/helpers/localSchemaInfos"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -33,11 +33,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			suggestedName := strings.ReplaceAll(fieldName, "_in_percent", "_percentage")
 			pos := pass.Fset.Position(schemaLit.Pos())
 			// Only report if this line is in the changed lines
-			if changedlines.ShouldReport(pos.Filename, pos.Line) {
+			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(schemaLit.Pos(), "%s: field %q should use %s suffix instead of %s (suggested: %q)\n",
 					analyzerName, fieldName,
-					util.FixedCode("'_percentage'"),
-					util.IssueLine("'_in_percent'"),
+					helpers.FixedCode("'_percentage'"),
+					helpers.IssueLine("'_in_percent'"),
 					suggestedName)
 			}
 		}

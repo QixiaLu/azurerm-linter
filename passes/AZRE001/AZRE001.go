@@ -5,8 +5,8 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/qixialu/azurerm-linter/passes/changedlines"
-	"github.com/qixialu/azurerm-linter/passes/util"
+	"github.com/qixialu/azurerm-linter/helpers"
+	"github.com/qixialu/azurerm-linter/loader"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -45,7 +45,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		filename := pass.Fset.Position(f.Pos()).Filename
 
 		// Skip if not changed
-		if !changedlines.IsFileChanged(filename) {
+		if !loader.IsFileChanged(filename) {
 			continue
 		}
 
@@ -133,12 +133,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		// If it doesn't contain %, it's a fixed string and should use errors.New()
 		if !strings.Contains(formatStr, "%") {
 			// Reuse pos from earlier to avoid duplicate Position lookup
-			if changedlines.ShouldReport(filename, pos.Line) {
+			if loader.ShouldReport(filename, pos.Line) {
 				pass.Reportf(call.Pos(), "%s: fixed error strings should use %s instead of %s: %s\n",
 					analyzerName,
-					util.FixedCode("errors.New()"),
-					util.IssueLine("fmt.Errorf()"),
-					util.IssueLine(formatStr))
+					helpers.FixedCode("errors.New()"),
+					helpers.IssueLine("fmt.Errorf()"),
+					helpers.IssueLine(formatStr))
 			}
 		}
 	})

@@ -1,4 +1,4 @@
-package schemafields
+package helpers
 
 import (
 	"go/ast"
@@ -48,8 +48,7 @@ func IsSchemaMap(comp *ast.CompositeLit) bool {
 }
 
 // ExtractFromCompositeLit extracts schema fields from a map[string]*schema.Schema composite literal
-// Returns SchemaFieldInfo with full SchemaInfo for each field
-func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schemaInfo *commonschemainfo.SchemaInfo) []SchemaFieldInfo {
+func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, commonSchemaInfo *commonschemainfo.SchemaInfo) []SchemaFieldInfo {
 	fields := make([]SchemaFieldInfo, 0, len(smap.Elts))
 
 	for i, elt := range smap.Elts {
@@ -72,7 +71,7 @@ func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schema
 			resolvedSchema = schema.NewSchemaInfo(v, pass.TypesInfo)
 		case *ast.CallExpr:
 			// Function call: try to resolve
-			resolvedSchema = resolveSchemaInfoFromCall(pass, v, schemaInfo)
+			resolvedSchema = resolveSchemaInfoFromCall(pass, v, commonSchemaInfo)
 		default:
 			// Unknown type, skip
 			continue
@@ -148,14 +147,14 @@ func IsNestedSchema(file *ast.File, schemaLit *ast.CompositeLit) bool {
 
 // resolveSchemaInfoFromCall resolves schema info from a function call
 // It tries cross-package cache first, then same-package resolution
-func resolveSchemaInfoFromCall(pass *analysis.Pass, call *ast.CallExpr, schemaInfo *commonschemainfo.SchemaInfo) *schema.SchemaInfo {
-	// Strategy 1: Try to get from commonschemainfo cache (for cross-package functions)
+func resolveSchemaInfoFromCall(pass *analysis.Pass, call *ast.CallExpr, commonSchemaInfo *commonschemainfo.SchemaInfo) *schema.SchemaInfo {
+	// Strategy 1: Try to get from commonSchemaInfo cache (for cross-package functions)
 	if selExpr, ok := call.Fun.(*ast.SelectorExpr); ok {
 		if pkgIdent, ok := selExpr.X.(*ast.Ident); ok {
 			if obj := pass.TypesInfo.Uses[pkgIdent]; obj != nil {
 				if pkgName, ok := obj.(*types.PkgName); ok {
 					funcKey := pkgName.Imported().Path() + "." + selExpr.Sel.Name
-					if cachedSchemaInfo, ok := schemaInfo.Functions[funcKey]; ok {
+					if cachedSchemaInfo, ok := commonSchemaInfo.Functions[funcKey]; ok {
 						return cachedSchemaInfo
 					}
 				}

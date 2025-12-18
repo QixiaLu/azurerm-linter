@@ -3,6 +3,7 @@ package commonschemainfo
 import (
 	"go/ast"
 	"go/types"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -113,8 +114,10 @@ func loadSchemaInfo(pass *analysis.Pass) *SchemaInfo {
 	}
 
 	// Load commonschema package from vendor
-	pkgs, _ := packages.Load(cfg, "./...")
-	if len(pkgs) > 0 {
+	pkgs, err := packages.Load(cfg, "./...")
+	if err != nil {
+		log.Printf("Warning: failed to load commonschema package: %v", err)
+	} else if len(pkgs) > 0 {
 		parseHelperPackage(pkgs[0], info)
 	}
 
