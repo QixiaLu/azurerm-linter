@@ -1,7 +1,6 @@
 package commonschemainfo
 
 import (
-	"fmt"
 	"go/ast"
 	"go/types"
 	"os"
@@ -31,35 +30,38 @@ var Analyzer = &analysis.Analyzer{
 // Global cache for schema info - loaded only once successfully
 var (
 	globalSchemaInfo *SchemaInfo
-	loadOnce         sync.Once
 	loadMutex        sync.RWMutex
 )
 
 func run(pass *analysis.Pass) (interface{}, error) {
+	// Fast path: check if already loaded (without blocking)
 	loadMutex.RLock()
-	if globalSchemaInfo != nil && len(globalSchemaInfo.Functions) > 0 {
-		loadMutex.RUnlock()
-		return globalSchemaInfo, nil
-	}
+	cached := globalSchemaInfo
 	loadMutex.RUnlock()
 
-	loadOnce.Do(func() {
-		loadMutex.Lock()
-		defer loadMutex.Unlock()
-		info := loadSchemaInfo(pass)
-		if len(info.Functions) > 0 {
-			globalSchemaInfo = info
-		}
-	})
+	if cached != nil {
+		return cached, nil
+	}
 
-	loadMutex.RLock()
-	defer loadMutex.RUnlock()
+	// Try to load (only one goroutine will succeed in acquiring write lock)
+	loadMutex.Lock()
+	defer loadMutex.Unlock()
+
+	// Double-check: another goroutine might have loaded while we were waiting
 	if globalSchemaInfo != nil {
 		return globalSchemaInfo, nil
 	}
 
-	// Return empty info if load failed
-	return &SchemaInfo{Functions: make(map[string]*schema.SchemaInfo)}, nil
+	info := loadSchemaInfo(pass)
+
+	if len(info.Functions) > 0 {
+		// Success: cache the result
+		globalSchemaInfo = info
+		return info, nil
+	} else {
+		// Failure: don't cache, allow retry on next call
+		return info, nil
+	}
 }
 
 func loadSchemaInfo(pass *analysis.Pass) *SchemaInfo {
@@ -73,7 +75,8 @@ func loadSchemaInfo(pass *analysis.Pass) *SchemaInfo {
 
 	// Get the file path from the first file in the package
 	filePath := pass.Fset.Position(pass.Files[0].Pos()).Filename
-	if strings.Contains(filePath, "go-build") || strings.Contains(filePath, "AppData") {
+	// These are go local cache files
+	if strings.Contains(filePath, "go-build") || strings.Contains(filePath, "AppData") || strings.Contains(filePath, ".test") {
 		return info
 	}
 
@@ -110,10 +113,8 @@ func loadSchemaInfo(pass *analysis.Pass) *SchemaInfo {
 	}
 
 	// Load commonschema package from vendor
-	pkgs, err := packages.Load(cfg, "./...")
-	if err != nil {
-		fmt.Printf("[schemainfo] Error loading package: %v\n", err)
-	} else {
+	pkgs, _ := packages.Load(cfg, "./...")
+	if len(pkgs) > 0 {
 		parseHelperPackage(pkgs[0], info)
 	}
 

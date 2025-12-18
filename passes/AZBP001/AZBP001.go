@@ -68,7 +68,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !hasValidation {
 			pos := pass.Fset.Position(schemaLit.Pos())
 			if changedlines.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(schemaLit.Pos(), "%s: string argument %q must have ValidateFunc",
+				pass.Reportf(schemaLit.Pos(), "%s: string argument %q must have ValidateFunc\n",
 					analyzerName, propertyName)
 			}
 		}
