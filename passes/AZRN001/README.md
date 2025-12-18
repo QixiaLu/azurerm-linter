@@ -5,7 +5,7 @@ The AZRN001 analyzer reports when percentage properties use `_in_percent` suffix
 ## Flagged Code
 
 ```go
-// ❌ Incorrect: using _in_percent suffix
+// Incorrect: using _in_percent suffix
 "cpu_threshold_in_percent": {
     Type:     pluginsdk.TypeInt,
     Required: true,
@@ -13,7 +13,7 @@ The AZRN001 analyzer reports when percentage properties use `_in_percent` suffix
 ```
 
 ```go
-// ❌ Incorrect: using _in_percent in nested schema
+// Incorrect: using _in_percent in nested schema
 "scaling_policy": {
     Type:     pluginsdk.TypeList,
     Optional: true,
@@ -31,7 +31,7 @@ The AZRN001 analyzer reports when percentage properties use `_in_percent` suffix
 ## Passing Code
 
 ```go
-// ✅ Correct: using _percentage suffix
+// Correct: using _percentage suffix
 "cpu_threshold_percentage": {
     Type:     pluginsdk.TypeInt,
     Required: true,
@@ -39,7 +39,7 @@ The AZRN001 analyzer reports when percentage properties use `_in_percent` suffix
 ```
 
 ```go
-// ✅ Correct: using _percentage in nested schema
+// Correct: using _percentage in nested schema
 "scaling_policy": {
     Type:     pluginsdk.TypeList,
     Optional: true,

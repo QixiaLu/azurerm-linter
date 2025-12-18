@@ -11,8 +11,6 @@ import (
 )
 
 // AllChecks contains all Analyzers that report issues
-// This can be consumed via multichecker.Main(xpasses.AllChecks...) or by
-// combining these Analyzers with additional custom Analyzers
 var AllChecks = []*analysis.Analyzer{
 	AZBP001.Analyzer,
 	AZBP002.Analyzer,

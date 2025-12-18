@@ -5,14 +5,14 @@ The AZRE001 analyzer reports when fixed error strings (without format placeholde
 ## Flagged Code
 
 ```go
-// ❌ Incorrect: using fmt.Errorf for a fixed string
+// Incorrect: using fmt.Errorf for a fixed string
 if err := client.Delete(ctx, id); err != nil {
     return fmt.Errorf("deleting resource")
 }
 ```
 
 ```go
-// ❌ Incorrect: no placeholders in the format string
+// Incorrect: no placeholders in the format string
 if resp.StatusCode != 200 {
     return fmt.Errorf("unexpected status code")
 }
@@ -21,21 +21,21 @@ if resp.StatusCode != 200 {
 ## Passing Code
 
 ```go
-// ✅ Correct: using errors.New for fixed strings
+// Correct: using errors.New for fixed strings
 if err := client.Delete(ctx, id); err != nil {
     return errors.New("deleting resource")
 }
 ```
 
 ```go
-// ✅ Correct: using fmt.Errorf with format placeholders
+// Correct: using fmt.Errorf with format placeholders
 if err := client.Delete(ctx, id); err != nil {
     return fmt.Errorf("deleting %s: %+v", id, err)
 }
 ```
 
 ```go
-// ✅ Correct: using fmt.Errorf with multiple values
+// Correct: using fmt.Errorf with multiple values
 if resp.StatusCode != 200 {
     return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 }

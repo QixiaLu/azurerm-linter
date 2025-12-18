@@ -17,9 +17,6 @@ type SchemaFieldInfo struct {
 	Position   int
 }
 
-// Deprecated: Use SchemaFieldInfo instead
-type SchemaField = SchemaFieldInfo
-
 // IsSchemaMap checks if a composite literal is a map[string]*schema.Schema or map[string]*pluginsdk.Schema
 func IsSchemaMap(comp *ast.CompositeLit) bool {
 	// Check if it's a map literal
@@ -108,35 +105,6 @@ func IsNestedSchemaMap(file *ast.File, schemaLit *ast.CompositeLit) bool {
 		if schemaLit.Pos() >= kv.Value.Pos() && schemaLit.End() <= kv.Value.End() {
 			isNested = true
 			return false // Found it, stop searching immediately
-		}
-
-		return true
-	})
-
-	return isNested
-}
-
-// Deprecated: Use IsNestedSchemaMap instead
-// IsNestedSchema checks if a SchemaInfo represents a nested schema (within an Elem field)
-func IsNestedSchema(file *ast.File, schemaLit *ast.CompositeLit) bool {
-	var isNested bool
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		kv, ok := n.(*ast.KeyValueExpr)
-		if !ok {
-			return true
-		}
-
-		// Check if this is an Elem key
-		key, ok := kv.Key.(*ast.Ident)
-		if !ok || key.Name != "Elem" {
-			return true
-		}
-
-		// Check if our schemaLit is within this Elem value
-		if schemaLit.Pos() >= kv.Value.Pos() && schemaLit.End() <= kv.Value.End() {
-			isNested = true
-			return false // Found it, stop searching
 		}
 
 		return true

@@ -15,7 +15,8 @@ func main() {
 	flag.Parse()
 
 	// Load changed lines filter
-	if err := loader.LoadChanges(); err != nil {
+	_, err := loader.LoadChanges()
+	if err != nil {
 		log.Printf("Warning: failed to load changed lines filter: %v", err)
 	}
 

@@ -13,35 +13,37 @@ import (
 // LocalGitLoader loads changes from local git repository
 type LocalGitLoader struct{}
 
-// Load loads changes from local git repository
-func (l *LocalGitLoader) Load() error {
+// Load loads changes from local git repository and returns a ChangeSet
+func (l *LocalGitLoader) Load() (*ChangeSet, error) {
+	cs := NewChangeSet()
+
 	repo, err := git.PlainOpen(".")
 	if err != nil {
-		return fmt.Errorf("failed to open repository: %w", err)
+		return nil, fmt.Errorf("failed to open repository: %w", err)
 	}
 
 	log.Println("Using git method (local mode)")
 
 	targetCommit, _, err := resolveForLocal(repo)
 	if err != nil {
-		return fmt.Errorf("failed to resolve target: %w", err)
+		return nil, fmt.Errorf("failed to resolve target: %w", err)
 	}
 
 	log.Printf("Comparing: %s..worktree (includes uncommitted changes)",
 		targetCommit.Hash.String()[:7])
 
-	if err := processDiffWithWorktree(targetCommit); err != nil {
-		return fmt.Errorf("failed to parse diff: %w", err)
+	if err := processDiffWithWorktree(cs, targetCommit); err != nil {
+		return nil, fmt.Errorf("failed to parse diff: %w", err)
 	}
 
 	log.Printf("✓ Found %d changed files with %d changed lines",
-		len(changedFiles), getTotalChangedLines())
+		len(cs.changedFiles), cs.getTotalChangedLines())
 
-	return nil
+	return cs, nil
 }
 
 // processDiffWithWorktree compares a commit with the current worktree using git diff
-func processDiffWithWorktree(baseCommit *object.Commit) error {
+func processDiffWithWorktree(cs *ChangeSet, baseCommit *object.Commit) error {
 	cmd := exec.Command("git", "diff", baseCommit.Hash.String())
 	output, err := cmd.Output()
 	if err != nil {
@@ -53,7 +55,7 @@ func processDiffWithWorktree(baseCommit *object.Commit) error {
 		return nil
 	}
 
-	return parseDiffOutput(diffOutput)
+	return cs.parseDiffOutput(diffOutput)
 }
 
 // resolveForLocal resolves the target commit and worktree for comparison

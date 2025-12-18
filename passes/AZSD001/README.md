@@ -5,7 +5,7 @@ The AZSD001 analyzer reports when blocks with `MaxItems: 1` contain only a singl
 ## Flagged Code
 
 ```go
-// ❌ Incorrect: MaxItems:1 with single property, no explanation
+// Incorrect: MaxItems:1 with single property, no explanation
 "config": {
     Type:     pluginsdk.TypeList,
     MaxItems: 1,
@@ -22,7 +22,7 @@ The AZSD001 analyzer reports when blocks with `MaxItems: 1` contain only a singl
 ```
 
 ```go
-// ❌ Incorrect: TypeSet with MaxItems:1 and single property
+// Incorrect: TypeSet with MaxItems:1 and single property
 "settings": {
     Type:     pluginsdk.TypeSet,
     MaxItems: 1,
@@ -41,7 +41,7 @@ The AZSD001 analyzer reports when blocks with `MaxItems: 1` contain only a singl
 ## Passing Code
 
 ```go
-// ✅ Correct: flattened to a single property
+// Correct: flattened to a single property
 "config_value": {
     Type:     pluginsdk.TypeString,
     Optional: true,
@@ -49,7 +49,7 @@ The AZSD001 analyzer reports when blocks with `MaxItems: 1` contain only a singl
 ```
 
 ```go
-// ✅ Correct: MaxItems:1 with multiple properties
+// Correct: MaxItems:1 with multiple properties
 "config": {
     Type:     pluginsdk.TypeList,
     MaxItems: 1,

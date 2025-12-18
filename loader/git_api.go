@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 )
 
 // PRFile represents a file in a GitHub PR
@@ -23,21 +22,23 @@ type PRFile struct {
 // GitHubLoader loads changes from GitHub API
 type GitHubLoader struct{}
 
-// Load loads changes from GitHub API
-func (l *GitHubLoader) Load() error {
+// Load loads changes from GitHub API and returns a ChangeSet
+func (l *GitHubLoader) Load() (*ChangeSet, error) {
+	cs := NewChangeSet()
+
 	token := os.Getenv("GITHUB_TOKEN")
 	owner, name := getRepoInfo()
 
 	prNum, err := getPRNumber()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	log.Printf("Fetching PR #%d changes from GitHub API (%s/%s)...", prNum, owner, name)
 
 	files, err := fetchPRFiles(token, owner, name, prNum)
 	if err != nil {
-		return fmt.Errorf("failed to fetch PR files: %w", err)
+		return nil, fmt.Errorf("failed to fetch PR files: %w", err)
 	}
 
 	for _, file := range files {
@@ -52,19 +53,19 @@ func (l *GitHubLoader) Load() error {
 		isNewFile := file.Status == "added"
 
 		if file.Patch != "" {
-			if err := parsePatch(normalizedPath, file.Patch); err != nil {
+			if err := cs.parsePatch(normalizedPath, file.Patch); err != nil {
 				log.Printf("Warning: failed to parse patch for %s: %v", file.Filename, err)
 			}
 		}
 
-		changedFiles[normalizedPath] = true
+		cs.changedFiles[normalizedPath] = true
 		if isNewFile {
-			newFiles[normalizedPath] = true
+			cs.newFiles[normalizedPath] = true
 		}
 	}
 
-	log.Printf("✓ Found %d changed files from GitHub API", len(changedFiles))
-	return nil
+	log.Printf("✓ Found %d changed files from GitHub API", len(cs.changedFiles))
+	return cs, nil
 }
 
 // fetchPRFiles fetches the list of changed files from GitHub API
@@ -110,6 +111,7 @@ func fetchPRFiles(token, owner, name string, prNum int) ([]PRFile, error) {
 
 // getRepoInfo gets the repository owner and name
 func getRepoInfo() (owner, name string) {
+	// Default to terraform-provider-azurerm
 	owner = "hashicorp"
 	name = "terraform-provider-azurerm"
 
@@ -117,56 +119,13 @@ func getRepoInfo() (owner, name string) {
 		name = *repoName
 	}
 
-	if repo := os.Getenv("GITHUB_REPOSITORY"); repo != "" {
-		parts := strings.Split(repo, "/")
-		if len(parts) == 2 {
-			owner, name = parts[0], parts[1]
-		}
-	}
-
 	return owner, name
 }
 
-// getPRNumber gets the PR number from flags or environment
+// getPRNumber gets the PR number from flags
 func getPRNumber() (int, error) {
 	if *prNumber > 0 {
 		return *prNumber, nil
 	}
-
-	eventName := os.Getenv("GITHUB_EVENT_NAME")
-	if eventName == "pull_request" || eventName == "pull_request_target" {
-		if eventPath := os.Getenv("GITHUB_EVENT_PATH"); eventPath != "" {
-			data, err := os.ReadFile(eventPath)
-			if err == nil {
-				var event struct {
-					Number      int `json:"number"`
-					PullRequest struct {
-						Number int `json:"number"`
-					} `json:"pull_request"`
-				}
-				if err := json.Unmarshal(data, &event); err == nil {
-					if event.Number > 0 {
-						return event.Number, nil
-					}
-					if event.PullRequest.Number > 0 {
-						return event.PullRequest.Number, nil
-					}
-				}
-			}
-		}
-	}
-
-	return 0, fmt.Errorf("could not determine PR number")
-}
-
-// isGitHubActions checks if running in GitHub Actions
-func isGitHubActions() bool {
-	return os.Getenv("GITHUB_ACTIONS") == "true"
-}
-
-// canUseGitHubAPI checks if GitHub API can be used
-func canUseGitHubAPI() bool {
-	eventName := os.Getenv("GITHUB_EVENT_NAME")
-	return os.Getenv("GITHUB_REPOSITORY") != "" &&
-		(eventName == "pull_request" || eventName == "pull_request_target")
+	return 0, fmt.Errorf("PR number not specified, use --pr-number flag")
 }

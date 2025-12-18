@@ -23,7 +23,7 @@ type SchemaInfo struct {
 
 var Analyzer = &analysis.Analyzer{
 	Name:       "schemainfo",
-	Doc:        "extracts schema information from commonschema and other helper packages",
+	Doc:        "Extracts schema information from commonschema packages",
 	Run:        run,
 	ResultType: reflect.TypeOf(&SchemaInfo{}),
 }
@@ -35,7 +35,6 @@ var (
 )
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	// Fast path: check if already loaded (without blocking)
 	loadMutex.RLock()
 	cached := globalSchemaInfo
 	loadMutex.RUnlock()
@@ -44,7 +43,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return cached, nil
 	}
 
-	// Try to load (only one goroutine will succeed in acquiring write lock)
 	loadMutex.Lock()
 	defer loadMutex.Unlock()
 
@@ -56,7 +54,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	info := loadSchemaInfo(pass)
 
 	if len(info.Functions) > 0 {
-		// Success: cache the result
 		globalSchemaInfo = info
 		return info, nil
 	} else {
