@@ -119,7 +119,7 @@ func IsEnabled() bool {
 	if globalChangeSet == nil {
 		return false
 	}
-	return globalChangeSet.IsEnabled()
+	return globalChangeSet.isEnabled()
 }
 
 // GetStats returns statistics about tracked changes
@@ -127,10 +127,8 @@ func GetStats() (filesCount int, totalLines int) {
 	if globalChangeSet == nil {
 		return 0, 0
 	}
-	return globalChangeSet.GetStats()
+	return globalChangeSet.getStats()
 }
-
-// ChangeSet methods
 
 // ShouldReport checks if a specific line in a file should be reported
 func (cs *ChangeSet) ShouldReport(filename string, line int) bool {
@@ -179,13 +177,13 @@ func (cs *ChangeSet) IsNewFile(filename string) bool {
 	return cs.newFiles[relPath]
 }
 
-// IsEnabled checks if change tracking is enabled and has data
-func (cs *ChangeSet) IsEnabled() bool {
+// isEnabled checks if change tracking is enabled and has data
+func (cs *ChangeSet) isEnabled() bool {
 	return len(cs.changedLines) > 0
 }
 
-// GetStats returns statistics about tracked changes
-func (cs *ChangeSet) GetStats() (filesCount int, totalLines int) {
+// getStats returns statistics about tracked changes
+func (cs *ChangeSet) getStats() (filesCount int, totalLines int) {
 	filesCount = len(cs.changedFiles)
 	totalLines = cs.getTotalChangedLines()
 	return
