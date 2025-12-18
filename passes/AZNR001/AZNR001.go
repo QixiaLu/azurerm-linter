@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
+	"github.com/qixialu/azurerm-linter/passes/helpers/commonschemainfo"
 	"github.com/qixialu/azurerm-linter/passes/helpers/schemafields"
-	"github.com/qixialu/azurerm-linter/passes/helpers/schemainfo"
 	"github.com/qixialu/azurerm-linter/passes/util"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -36,7 +36,7 @@ var Analyzer = &analysis.Analyzer{
 	Name:     analyzerName,
 	Doc:      Doc,
 	Run:      run,
-	Requires: []*analysis.Analyzer{inspect.Analyzer, schemainfo.Analyzer},
+	Requires: []*analysis.Analyzer{inspect.Analyzer, commonschemainfo.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -52,19 +52,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if !ok {
 		return nil, nil
 	}
-	schemaInfo, ok := pass.ResultOf[schemainfo.Analyzer].(*schemainfo.SchemaInfo)
+	schemaInfo, ok := pass.ResultOf[commonschemainfo.Analyzer].(*commonschemainfo.SchemaInfo)
 	if !ok {
 		return nil, nil
 	}
 
 	nodeFilter := []ast.Node{(*ast.CompositeLit)(nil)}
-
-	// Build nested schemas map for all files
-	nestedSchemasMap := make(map[*ast.File]map[*ast.CompositeLit]bool)
-	for _, f := range pass.Files {
-		nestedSchemasMap[f] = schemafields.FindNestedSchemas(f)
-	}
-
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
 		comp, ok := n.(*ast.CompositeLit)
 		if !ok {
@@ -99,11 +92,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		// Find which file this comp belongs to and check if nested
-		var isNested bool
-		for f, nestedSchemas := range nestedSchemasMap {
-			if comp.Pos() >= f.Pos() && comp.End() <= f.End() {
-				isNested = nestedSchemas[comp]
+		// Check if this schema is nested within an Elem field
+		isNested := false
+		for _, f := range pass.Files {
+			fPos := pass.Fset.Position(f.Pos())
+			if fPos.Filename == filename {
+				isNested = schemafields.IsNestedSchemaMap(f, comp)
 				break
 			}
 		}
@@ -134,7 +128,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 // For nested schemas:
 //   - required fields must come before optional fields
 //   - optional fields must come before computed fields
-func checkOrderingIssues(fields []schemafields.SchemaField, isNested bool) ([]string, string) {
+func checkOrderingIssues(fields []schemafields.SchemaFieldInfo, isNested bool) ([]string, string) {
 	if len(fields) == 0 {
 		return nil, ""
 	}
@@ -143,8 +137,8 @@ func checkOrderingIssues(fields []schemafields.SchemaField, isNested bool) ([]st
 	return expectedOrder, validateOrder(fields, expectedOrder, isNested)
 }
 
-func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string {
-	fieldMap := make(map[string]schemafields.SchemaField)
+func getExpectedOrder(fields []schemafields.SchemaFieldInfo, isNested bool) []string {
+	fieldMap := make(map[string]schemafields.SchemaFieldInfo)
 	for _, field := range fields {
 		fieldMap[field.Name] = field
 	}
@@ -156,7 +150,7 @@ func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string
 		specialRequiredFields := make(map[string]bool)
 		for _, field := range fields {
 			if field.Name == "name" || field.Name == "resource_group_name" || field.Name == "location" {
-				if field.Required {
+				if field.SchemaInfo != nil && field.SchemaInfo.Schema.Required {
 					specialRequiredFields[field.Name] = true
 				}
 			}
@@ -176,17 +170,19 @@ func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string
 
 		for _, field := range fields {
 			// Skip special required fields as they're already added
-			if (field.Name == "name" || field.Name == "resource_group_name" || field.Name == "location") && field.Required {
+			if (field.Name == "name" || field.Name == "resource_group_name" || field.Name == "location") && field.SchemaInfo != nil && field.SchemaInfo.Schema.Required {
 				continue
 			}
 
-			switch {
-			case field.Required:
-				requiredFields = append(requiredFields, field.Name)
-			case field.Optional:
-				optionalFields = append(optionalFields, field.Name)
-			case field.Computed:
-				computedFields = append(computedFields, field.Name)
+			if field.SchemaInfo != nil {
+				switch {
+				case field.SchemaInfo.Schema.Required:
+					requiredFields = append(requiredFields, field.Name)
+				case field.SchemaInfo.Schema.Optional:
+					optionalFields = append(optionalFields, field.Name)
+				case field.SchemaInfo.Schema.Computed:
+					computedFields = append(computedFields, field.Name)
+				}
 			}
 		}
 
@@ -206,13 +202,15 @@ func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string
 		var computedFields []string
 
 		for _, field := range fields {
-			switch {
-			case field.Required:
-				requiredFields = append(requiredFields, field.Name)
-			case field.Optional:
-				optionalFields = append(optionalFields, field.Name)
-			case field.Computed:
-				computedFields = append(computedFields, field.Name)
+			if field.SchemaInfo != nil {
+				switch {
+				case field.SchemaInfo.Schema.Required:
+					requiredFields = append(requiredFields, field.Name)
+				case field.SchemaInfo.Schema.Optional:
+					optionalFields = append(optionalFields, field.Name)
+				case field.SchemaInfo.Schema.Computed:
+					computedFields = append(computedFields, field.Name)
+				}
 			}
 		}
 
@@ -228,7 +226,7 @@ func getExpectedOrder(fields []schemafields.SchemaField, isNested bool) []string
 	return result
 }
 
-func validateOrder(fields []schemafields.SchemaField, expectedOrder []string, isNested bool) string {
+func validateOrder(fields []schemafields.SchemaFieldInfo, expectedOrder []string, isNested bool) string {
 	if len(fields) != len(expectedOrder) {
 		// Skip if len is not equal, it happens when it's failed to extract field's properties;
 		// it might because the schema is defined in another package, except commonschema
@@ -266,13 +264,15 @@ func validateOrder(fields []schemafields.SchemaField, expectedOrder []string, is
 				continue
 			}
 
-			isOptional := field.Optional
-			isComputed := field.Computed && !field.Optional && !field.Required
+			if field.SchemaInfo != nil {
+				isOptional := field.SchemaInfo.Schema.Optional
+				isComputed := field.SchemaInfo.Schema.Computed && !field.SchemaInfo.Schema.Optional && !field.SchemaInfo.Schema.Required
 
-			if isOptional {
-				optionalActual = append(optionalActual, field.Name)
-			} else if isComputed {
-				computedActual = append(computedActual, field.Name)
+				if isOptional {
+					optionalActual = append(optionalActual, field.Name)
+				} else if isComputed {
+					computedActual = append(computedActual, field.Name)
+				}
 			}
 		}
 

@@ -1,11 +1,13 @@
 package a
 
 import (
-    "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"testdata/src/mockPKG/pluginsdk"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func resourceInValid() *schema.Resource {
-    return &schema.Resource{
+func resourceInValid() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
         Schema: map[string]*schema.Schema{ // want `name, resource_group_name, location, account_replication_type, account_tier, enable_https, tags, primary_key`
             "resource_group_name": {
                 Type:     schema.TypeString,
@@ -53,8 +55,8 @@ func resourceInValid() *schema.Resource {
     }
 }
 
-func resourceValid() *schema.Resource {
-    return &schema.Resource{
+func resourceValid() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
         Schema: map[string]*schema.Schema{
              "name": {
                 Type:     schema.TypeString,
@@ -101,3 +103,5 @@ func resourceValid() *schema.Resource {
         },
     }
 }
+
+

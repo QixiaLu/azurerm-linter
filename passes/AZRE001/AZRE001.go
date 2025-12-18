@@ -39,6 +39,40 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
+	// Pre-filter: Build set of changed files that import "fmt"
+	relevantFiles := make(map[string]bool)
+	for _, f := range pass.Files {
+		filename := pass.Fset.Position(f.Pos()).Filename
+
+		// Skip if not changed
+		if !changedlines.IsFileChanged(filename) {
+			continue
+		}
+
+		// Skip test files
+		if strings.HasSuffix(filename, "_test.go") {
+			continue
+		}
+
+		// Check if file imports "fmt"
+		importsFmt := false
+		for _, imp := range f.Imports {
+			if imp.Path.Value == `"fmt"` {
+				importsFmt = true
+				break
+			}
+		}
+
+		if importsFmt {
+			relevantFiles[filename] = true
+		}
+	}
+
+	// Early return if no relevant files
+	if len(relevantFiles) == 0 {
+		return nil, nil
+	}
+
 	// Get the shared inspector
 	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	if !ok {
@@ -56,15 +90,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		filename := pass.Fset.Position(call.Pos()).Filename
+		// Use pre-computed Position for both filename and line number
+		pos := pass.Fset.Position(call.Pos())
+		filename := pos.Filename
 
-		// Skip files not in changed files list
-		if !changedlines.IsFileChanged(filename) {
-			return
-		}
-
-		// Skip test files
-		if strings.HasSuffix(filename, "_test.go") {
+		if !relevantFiles[filename] {
 			return
 		}
 
@@ -102,8 +132,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		// Check if the string value contains any placeholders (%v, %s, %d, %+v, etc.)
 		// If it doesn't contain %, it's a fixed string and should use errors.New()
 		if !strings.Contains(formatStr, "%") {
-			lineNum := pass.Fset.Position(call.Pos()).Line
-			if changedlines.ShouldReport(filename, lineNum) {
+			// Reuse pos from earlier to avoid duplicate Position lookup
+			if changedlines.ShouldReport(filename, pos.Line) {
 				pass.Reportf(call.Pos(), "%s: fixed error strings should use %s instead of %s: %s\n",
 					analyzerName,
 					util.FixedCode("errors.New()"),

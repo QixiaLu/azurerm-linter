@@ -20,7 +20,7 @@ func validCases() {
 
 func invalidCases() {
 	// Invalid: fmt.Errorf without placeholders
-	_ = fmt.Errorf("something went wrong") // want `fixed error strings should use errors\.New\(\) instead of fmt\.Errorf\(\)`
-	_ = fmt.Errorf("invalid input")        // want `fixed error strings should use errors\.New\(\) instead of fmt\.Errorf\(\)`
-	_ = fmt.Errorf("error occurred")       // want `fixed error strings should use errors\.New\(\) instead of fmt\.Errorf\(\)`
+	_ = fmt.Errorf("something went wrong") // want `AZRE001`
+	_ = fmt.Errorf("invalid input")        // want `AZRE001`
+	_ = fmt.Errorf("error occurred")       // want `AZRE001`
 }

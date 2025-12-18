@@ -1,29 +1,24 @@
-package schemainfo
+package commonschemainfo
 
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 
+	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 )
 
-// SchemaInfo stores information about schema functions
+// SchemaInfo stores information about common schema functions
 type SchemaInfo struct {
-	// Map of package.FunctionName -> SchemaProperties
-	Functions map[string]SchemaProperties
-}
-
-type SchemaProperties struct {
-	Required bool
-	Optional bool
-	Computed bool
+	// Map of package.FunctionName -> *schema.SchemaInfo
+	Functions map[string]*schema.SchemaInfo
 }
 
 var Analyzer = &analysis.Analyzer{
@@ -64,12 +59,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	// Return empty info if load failed
-	return &SchemaInfo{Functions: make(map[string]SchemaProperties)}, nil
+	return &SchemaInfo{Functions: make(map[string]*schema.SchemaInfo)}, nil
 }
 
 func loadSchemaInfo(pass *analysis.Pass) *SchemaInfo {
 	info := &SchemaInfo{
-		Functions: make(map[string]SchemaProperties),
+		Functions: make(map[string]*schema.SchemaInfo),
 	}
 
 	if len(pass.Files) == 0 {
@@ -139,11 +134,11 @@ func parseHelperPackage(helperPkg *packages.Package, info *SchemaInfo) {
 				return true
 			}
 
-			// Extract schema properties from function body
-			props := extractSchemaPropertiesFromFunc(funcDecl)
-			if props != nil {
+			// Extract schema info from function body using package's TypesInfo
+			schemaInfo := extractSchemaPropertiesFromFunc(funcDecl, helperPkg.TypesInfo)
+			if schemaInfo != nil {
 				key := helperPkg.PkgPath + "." + funcDecl.Name.Name
-				info.Functions[key] = *props
+				info.Functions[key] = schemaInfo
 			}
 
 			return true
@@ -151,10 +146,10 @@ func parseHelperPackage(helperPkg *packages.Package, info *SchemaInfo) {
 	}
 }
 
-func extractSchemaPropertiesFromFunc(funcDecl *ast.FuncDecl) *SchemaProperties {
-	var props SchemaProperties
-
+func extractSchemaPropertiesFromFunc(funcDecl *ast.FuncDecl, typesInfo *types.Info) *schema.SchemaInfo {
 	// Look for return statements with &schema.Schema{...}
+	var returnedSchema *ast.CompositeLit
+
 	ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
 		ret, ok := n.(*ast.ReturnStmt)
 		if !ok || len(ret.Results) == 0 {
@@ -166,49 +161,26 @@ func extractSchemaPropertiesFromFunc(funcDecl *ast.FuncDecl) *SchemaProperties {
 
 		switch expr := ret.Results[0].(type) {
 		case *ast.UnaryExpr:
-			if expr.Op == token.AND {
-				if cl, ok := expr.X.(*ast.CompositeLit); ok {
-					compLit = cl
-				}
+			// Handle &schema.Schema{...}
+			if cl, ok := expr.X.(*ast.CompositeLit); ok {
+				compLit = cl
 			}
 		case *ast.CompositeLit:
 			compLit = expr
 		}
 
-		if compLit == nil {
-			return true
+		if compLit != nil {
+			returnedSchema = compLit
+			return false // Stop inspection
 		}
 
-		// Extract Required/Optional/Computed from composite literal
-		for _, elt := range compLit.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-
-			key, ok := kv.Key.(*ast.Ident)
-			if !ok {
-				continue
-			}
-
-			switch key.Name {
-			case "Required":
-				if val, ok := kv.Value.(*ast.Ident); ok && val.Name == "true" {
-					props.Required = true
-				}
-			case "Optional":
-				if val, ok := kv.Value.(*ast.Ident); ok && val.Name == "true" {
-					props.Optional = true
-				}
-			case "Computed":
-				if val, ok := kv.Value.(*ast.Ident); ok && val.Name == "true" {
-					props.Computed = true
-				}
-			}
-		}
-
-		return false
+		return true
 	})
 
-	return &props
+	if returnedSchema == nil {
+		return nil
+	}
+
+	// Parse the returned schema using tfproviderlint's NewSchemaInfo with the package's TypesInfo
+	return schema.NewSchemaInfo(returnedSchema, typesInfo)
 }

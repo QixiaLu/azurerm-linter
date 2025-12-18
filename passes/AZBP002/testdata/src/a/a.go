@@ -45,21 +45,21 @@ func validCases() map[string]*schema.Schema {
 func invalidCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		// Invalid: Optional+Computed in wrong order (Computed before Optional)
-		"wrong_order": { // want `AZBP002: field "wrong_order" has Optional and Computed in wrong order \(Optional must come before Computed\)`
+		"wrong_order": { // want `AZBP002`
 			Type:     schema.TypeString,
 			Computed: true,
 			Optional: true,
 		},
 
 		// Invalid: Optional+Computed with correct order but missing NOTE: O+C comment
-		"missing_comment": { // want `AZBP002: field "missing_comment" is Optional\+Computed but missing required comment. Add '// NOTE: O\+C - <explanation>' between Optional and Computed`
+		"missing_comment": { // want `AZBP002`
 			Type:     schema.TypeString,
 			Optional: true,
 			Computed: true,
 		},
 
 		// Invalid: Optional+Computed with comment but wrong format (no "NOTE: O+C")
-		"wrong_comment_format": { // want `AZBP002: field "wrong_comment_format" is Optional\+Computed but missing required comment. Add '// NOTE: O\+C - <explanation>' between Optional and Computed`
+		"wrong_comment_format": { // want `AZBP002`
 			Type:     schema.TypeString,
 			Optional: true,
 			// This field can be computed

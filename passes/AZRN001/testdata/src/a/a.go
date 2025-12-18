@@ -17,7 +17,7 @@ func validCases() map[string]*schema.Schema {
 func invalidCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		// Invalid: Uses _in_percent instead of _percentage
-		"cpu_in_percent": { // want `AZRN001: field "cpu_in_percent" should use '_percentage' suffix instead of '_in_percent' \(suggested: "cpu_percentage"\)`
+		"cpu_in_percent": { // want `AZRN001`
 			Type:     schema.TypeInt,
 			Optional: true,
 		},

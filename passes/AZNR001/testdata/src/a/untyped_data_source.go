@@ -1,12 +1,14 @@
 package a
 
 import (
+	"testdata/src/mockPKG/pluginsdk"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 // Test: Data source with correct order
-func unTypedDataSourceValid() *schema.Resource {
-	return &schema.Resource{
+func unTypedDataSourceValid() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
@@ -37,8 +39,8 @@ func unTypedDataSourceValid() *schema.Resource {
 }
 
 // Test: Data source with wrong order
-func unTypedDataSourceInvalid() *schema.Resource {
-	return &schema.Resource{
+func unTypedDataSourceInvalid() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
 		Schema: map[string]*schema.Schema{ // want `name, resource_group_name, account_tier, location, tags`
 			"resource_group_name": {
 				Type:     schema.TypeString,

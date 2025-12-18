@@ -6,18 +6,19 @@ import (
 
 	"github.com/bflad/tfproviderlint/helper/astutils"
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	"github.com/qixialu/azurerm-linter/passes/helpers/schemainfo"
+	"github.com/qixialu/azurerm-linter/passes/helpers/commonschemainfo"
 	"golang.org/x/tools/go/analysis"
 )
 
-// SchemaField represents a field in a Terraform schema with its properties
-type SchemaField struct {
-	Name     string
-	Required bool
-	Optional bool
-	Computed bool
-	position int
+// SchemaFieldInfo represents a field in a Terraform schema with its schema information
+type SchemaFieldInfo struct {
+	Name       string
+	SchemaInfo *schema.SchemaInfo
+	Position   int
 }
+
+// Deprecated: Use SchemaFieldInfo instead
+type SchemaField = SchemaFieldInfo
 
 // IsSchemaMap checks if a composite literal is a map[string]*schema.Schema or map[string]*pluginsdk.Schema
 func IsSchemaMap(comp *ast.CompositeLit) bool {
@@ -47,9 +48,9 @@ func IsSchemaMap(comp *ast.CompositeLit) bool {
 }
 
 // ExtractFromCompositeLit extracts schema fields from a map[string]*schema.Schema composite literal
-// parentField is the name of the parent field (e.g., "Elem") if this schema is nested, empty string otherwise
-func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schemaInfo *schemainfo.SchemaInfo) []SchemaField {
-	fields := make([]SchemaField, 0, len(smap.Elts))
+// Returns SchemaFieldInfo with full SchemaInfo for each field
+func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schemaInfo *commonschemainfo.SchemaInfo) []SchemaFieldInfo {
+	fields := make([]SchemaFieldInfo, 0, len(smap.Elts))
 
 	for i, elt := range smap.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
@@ -63,113 +64,107 @@ func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, schema
 			continue
 		}
 
-		field := SchemaField{
-			Name:     *fieldName,
-			position: i,
-		}
-
-		// Try to parse the value - it could be either:
-		// 1. A composite literal: &schema.Schema{...}
-		// 2. A function call: commonschema.ResourceGroupName()
+		// Resolve schema info from the value
+		var resolvedSchema *schema.SchemaInfo
 		switch v := kv.Value.(type) {
 		case *ast.CompositeLit:
-			// Direct schema definition
-			schema := schema.NewSchemaInfo(v, pass.TypesInfo)
-			field.Required = schema.Schema.Required
-			field.Optional = schema.Schema.Optional
-			field.Computed = schema.Schema.Computed
+			// Direct schema definition: &schema.Schema{...}
+			resolvedSchema = schema.NewSchemaInfo(v, pass.TypesInfo)
 		case *ast.CallExpr:
-			found := false
-
-			// Strategy 1: Try to get from schemainfo cache (for cross-package functions)
-			if selExpr, ok := v.Fun.(*ast.SelectorExpr); ok {
-				if pkgIdent, ok := selExpr.X.(*ast.Ident); ok {
-					if obj := pass.TypesInfo.Uses[pkgIdent]; obj != nil {
-						if pkgName, ok := obj.(*types.PkgName); ok {
-							funcKey := pkgName.Imported().Path() + "." + selExpr.Sel.Name
-							if props, ok := schemaInfo.Functions[funcKey]; ok {
-								// Use schema info from the loaded package
-								field.Required = props.Required
-								field.Optional = props.Optional
-								field.Computed = props.Computed
-								found = true
-							}
-						}
-					}
-				}
-			}
-
-			// Strategy 2: Try to resolve from same-package function definition (if not found in cache)
-			if !found {
-				if resolvedSchema := resolveSchemaFromFuncCall(pass, v); resolvedSchema != nil {
-					field.Required = resolvedSchema.Schema.Required
-					field.Optional = resolvedSchema.Schema.Optional
-					field.Computed = resolvedSchema.Schema.Computed
-				}
-			}
+			// Function call: try to resolve
+			resolvedSchema = resolveSchemaInfoFromCall(pass, v, schemaInfo)
 		default:
 			// Unknown type, skip
 			continue
 		}
 
-		fields = append(fields, field)
+		fields = append(fields, SchemaFieldInfo{
+			Name:       *fieldName,
+			SchemaInfo: resolvedSchema,
+			Position:   i,
+		})
 	}
 
 	return fields
 }
 
-// findNestedSchemas finds all schema maps that are nested within Elem fields
-func FindNestedSchemas(file *ast.File) map[*ast.CompositeLit]bool {
-	nestedSchemas := make(map[*ast.CompositeLit]bool)
+// IsNestedSchemaMap checks if a schema map CompositeLit is nested within an Elem field
+// It uses position-based checking which is fast with early termination
+func IsNestedSchemaMap(file *ast.File, schemaLit *ast.CompositeLit) bool {
+	var isNested bool
 
 	ast.Inspect(file, func(n ast.Node) bool {
-		// Look for Elem key-value expressions
 		kv, ok := n.(*ast.KeyValueExpr)
 		if !ok {
 			return true
 		}
 
+		// Check if this is an Elem key
 		key, ok := kv.Key.(*ast.Ident)
 		if !ok || key.Name != "Elem" {
 			return true
 		}
 
-		// Mark all schema maps within this Elem value as nested
-		ast.Inspect(kv.Value, func(n2 ast.Node) bool {
-			comp, ok := n2.(*ast.CompositeLit)
-			if !ok {
-				return true
-			}
-
-			// Check if it's a schema map
-			mapType, ok := comp.Type.(*ast.MapType)
-			if !ok {
-				return true
-			}
-
-			if ident, ok := mapType.Key.(*ast.Ident); !ok || ident.Name != "string" {
-				return true
-			}
-
-			starExpr, ok := mapType.Value.(*ast.StarExpr)
-			if !ok {
-				return true
-			}
-
-			selExpr, ok := starExpr.X.(*ast.SelectorExpr)
-			if !ok || selExpr.Sel.Name != "Schema" {
-				return true
-			}
-
-			// This is a schema map inside Elem
-			nestedSchemas[comp] = true
-			return true
-		})
+		// Check if our schemaLit is within this Elem value's range
+		if schemaLit.Pos() >= kv.Value.Pos() && schemaLit.End() <= kv.Value.End() {
+			isNested = true
+			return false // Found it, stop searching immediately
+		}
 
 		return true
 	})
 
-	return nestedSchemas
+	return isNested
+}
+
+// Deprecated: Use IsNestedSchemaMap instead
+// IsNestedSchema checks if a SchemaInfo represents a nested schema (within an Elem field)
+func IsNestedSchema(file *ast.File, schemaLit *ast.CompositeLit) bool {
+	var isNested bool
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		kv, ok := n.(*ast.KeyValueExpr)
+		if !ok {
+			return true
+		}
+
+		// Check if this is an Elem key
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok || key.Name != "Elem" {
+			return true
+		}
+
+		// Check if our schemaLit is within this Elem value
+		if schemaLit.Pos() >= kv.Value.Pos() && schemaLit.End() <= kv.Value.End() {
+			isNested = true
+			return false // Found it, stop searching
+		}
+
+		return true
+	})
+
+	return isNested
+}
+
+// resolveSchemaInfoFromCall resolves schema info from a function call
+// It tries cross-package cache first, then same-package resolution
+func resolveSchemaInfoFromCall(pass *analysis.Pass, call *ast.CallExpr, schemaInfo *commonschemainfo.SchemaInfo) *schema.SchemaInfo {
+	// Strategy 1: Try to get from commonschemainfo cache (for cross-package functions)
+	if selExpr, ok := call.Fun.(*ast.SelectorExpr); ok {
+		if pkgIdent, ok := selExpr.X.(*ast.Ident); ok {
+			if obj := pass.TypesInfo.Uses[pkgIdent]; obj != nil {
+				if pkgName, ok := obj.(*types.PkgName); ok {
+					funcKey := pkgName.Imported().Path() + "." + selExpr.Sel.Name
+					if cachedSchemaInfo, ok := schemaInfo.Functions[funcKey]; ok {
+						return cachedSchemaInfo
+					}
+				}
+			}
+		}
+	}
+
+	// Strategy 2: Try to resolve from same-package function definition
+	return resolveSchemaFromFuncCall(pass, call)
 }
 
 // resolveSchemaFromFuncCall attempts to resolve schema info from a function call

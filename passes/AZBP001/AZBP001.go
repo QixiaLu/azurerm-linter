@@ -2,14 +2,11 @@ package AZBP001
 
 import (
 	"go/ast"
-	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/qixialu/azurerm-linter/passes/changedlines"
-	"github.com/qixialu/azurerm-linter/passes/helpers/schemafields"
+	localschema "github.com/qixialu/azurerm-linter/passes/helpers/schema/localSchemaInfos"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/ast/inspector"
 )
 
 const Doc = `check that all String arguments have validation
@@ -42,91 +39,40 @@ var Analyzer = &analysis.Analyzer{
 	Name:     analyzerName,
 	Doc:      Doc,
 	Run:      run,
-	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	Requires: []*analysis.Analyzer{localschema.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	// Skip migration packages
-	if strings.Contains(pass.Pkg.Path(), "/migration") {
-		return nil, nil
-	}
-
-	// Get the shared inspector - this reuses the AST traversal
-	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	schemaInfoCache, ok := pass.ResultOf[localschema.Analyzer].(map[*ast.CompositeLit]*localschema.SchemaInfoWithName)
 	if !ok {
 		return nil, nil
 	}
 
-	// Pre-filter: only look at CompositeLit nodes
-	nodeFilter := []ast.Node{
-		(*ast.CompositeLit)(nil),
+	for schemaLit, cached := range schemaInfoCache {
+		schemaInfo := cached.Info
+		propertyName := cached.PropertyName
+
+		// Type check: only check String fields
+		if !schemaInfo.IsType(schema.SchemaValueTypeString) {
+			continue
+		}
+
+		// Skip computed-only fields (no Required or Optional)
+		if schemaInfo.Schema.Computed && !schemaInfo.Schema.Required && !schemaInfo.Schema.Optional {
+			continue
+		}
+
+		// Check if validation exists
+		hasValidation := schemaInfo.DeclaresField(schema.SchemaFieldValidateFunc)
+
+		if !hasValidation {
+			pos := pass.Fset.Position(schemaLit.Pos())
+			if changedlines.ShouldReport(pos.Filename, pos.Line) {
+				pass.Reportf(schemaLit.Pos(), "%s: string argument %q must have ValidateFunc",
+					analyzerName, propertyName)
+			}
+		}
 	}
-
-	inspector.Preorder(nodeFilter, func(n ast.Node) {
-		comp, ok := n.(*ast.CompositeLit)
-		if !ok {
-			return
-		}
-
-		// Get filename for this node
-		filename := pass.Fset.Position(comp.Pos()).Filename
-
-		if !changedlines.IsFileChanged(filename) {
-			return
-		}
-
-		if strings.HasSuffix(filename, "_test.go") {
-			return
-		}
-
-		// Check if it's a schema map
-		if !schemafields.IsSchemaMap(comp) {
-			return
-		}
-
-		// Iterate through each schema field
-		for _, elt := range comp.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-
-			// Get field name
-			key, ok := kv.Key.(*ast.BasicLit)
-			if !ok {
-				continue
-			}
-			propertyName := strings.Trim(key.Value, `"`)
-
-			// Check if the value is a schema composite literal
-			schemaLit, ok := kv.Value.(*ast.CompositeLit)
-			if !ok {
-				continue
-			}
-
-			// Use tfproviderlint's SchemaInfo to analyze the schema
-			schemaInfo := schema.NewSchemaInfo(schemaLit, pass.TypesInfo)
-			if !schemaInfo.IsType(schema.SchemaValueTypeString) {
-				continue
-			}
-			// Skip if it's computed-only (no Required or Optional)
-			if schemaInfo.Schema.Computed && !schemaInfo.Schema.Required && !schemaInfo.Schema.Optional {
-				continue
-			}
-
-			// Check if validation exists (ValidateFunc)
-			hasValidation := schemaInfo.DeclaresField(schema.SchemaFieldValidateFunc)
-
-			// Report if no validation
-			if !hasValidation {
-				pos := pass.Fset.Position(kv.Pos())
-				if changedlines.ShouldReport(pos.Filename, pos.Line) {
-					pass.Reportf(kv.Pos(), "%s: string argument %q must have ValidateFunc",
-						analyzerName, propertyName)
-				}
-			}
-		}
-	})
 
 	return nil, nil
 }

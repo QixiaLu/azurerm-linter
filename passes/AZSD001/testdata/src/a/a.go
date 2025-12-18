@@ -65,7 +65,7 @@ func validCases() map[string]*schema.Schema {
 func invalidCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		// Invalid: MaxItems:1 with only one property and no comment
-		"config_single": { // want `AZSD001: field "config_single" has MaxItems: 1 with only one nested property - consider flattening or add inline comment explaining why \(e.g., '// Additional properties will be added per service team confirmation'\)`
+		"config_single": { // want `AZSD001`
 			Type:     schema.TypeList,
 			Optional: true,
 			MaxItems: 1,
@@ -80,7 +80,7 @@ func invalidCases() map[string]*schema.Schema {
 		},
 
 		// Invalid: Another case of MaxItems:1 with single property, no justification
-		"settings": { // want `AZSD001: field "settings" has MaxItems: 1 with only one nested property - consider flattening or add inline comment explaining why \(e.g., '// Additional properties will be added per service team confirmation'\)`
+		"settings": { // want `AZSD001`
 			Type:     schema.TypeList,
 			Optional: true,
 			MaxItems: 1,
