@@ -1,4 +1,4 @@
-package commonschemainfo
+package schema
 
 import (
 	"go/ast"
@@ -10,31 +10,33 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bflad/tfproviderlint/helper/astutils"
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
+	"github.com/qixialu/azurerm-linter/helper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 )
 
-// SchemaInfo stores information about common schema functions
-type SchemaInfo struct {
+// CommonSchemaInfo stores information about common schema functions
+type CommonSchemaInfo struct {
 	// Map of package.FunctionName -> *schema.SchemaInfo
 	Functions map[string]*schema.SchemaInfo
 }
 
-var Analyzer = &analysis.Analyzer{
-	Name:       "schemainfo",
+var CommonAnalyzer = &analysis.Analyzer{
+	Name:       "commonschemainfo",
 	Doc:        "Extracts schema information from commonschema packages",
-	Run:        run,
-	ResultType: reflect.TypeOf(&SchemaInfo{}),
+	Run:        runCommon,
+	ResultType: reflect.TypeOf(&CommonSchemaInfo{}),
 }
 
 // Global cache for schema info - loaded only once successfully
 var (
-	globalSchemaInfo *SchemaInfo
+	globalSchemaInfo *CommonSchemaInfo
 	loadMutex        sync.RWMutex
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func runCommon(pass *analysis.Pass) (interface{}, error) {
 	loadMutex.RLock()
 	cached := globalSchemaInfo
 	loadMutex.RUnlock()
@@ -62,8 +64,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 }
 
-func loadSchemaInfo(pass *analysis.Pass) *SchemaInfo {
-	info := &SchemaInfo{
+func loadSchemaInfo(pass *analysis.Pass) *CommonSchemaInfo {
+	info := &CommonSchemaInfo{
 		Functions: make(map[string]*schema.SchemaInfo),
 	}
 
@@ -121,7 +123,7 @@ func loadSchemaInfo(pass *analysis.Pass) *SchemaInfo {
 	return info
 }
 
-func parseHelperPackage(helperPkg *packages.Package, info *SchemaInfo) {
+func parseHelperPackage(helperPkg *packages.Package, info *CommonSchemaInfo) {
 	// Parse all functions in the package
 	for _, file := range helperPkg.Syntax {
 		ast.Inspect(file, func(n ast.Node) bool {
@@ -184,4 +186,94 @@ func extractSchemaPropertiesFromFunc(funcDecl *ast.FuncDecl, typesInfo *types.In
 
 	// Parse the returned schema using tfproviderlint's NewSchemaInfo with the package's TypesInfo
 	return schema.NewSchemaInfo(returnedSchema, typesInfo)
+}
+
+// ExtractFromCompositeLit extracts schema fields from a map[string]*schema.Schema composite literal
+func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, commonSchemaInfo *CommonSchemaInfo) []helper.SchemaFieldInfo {
+	fields := make([]helper.SchemaFieldInfo, 0, len(smap.Elts))
+
+	for i, elt := range smap.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+
+		// Get field name
+		fieldName := astutils.ExprStringValue(kv.Key)
+		if fieldName == nil {
+			continue
+		}
+
+		// Resolve schema info from the value
+		var resolvedSchema *schema.SchemaInfo
+		switch v := kv.Value.(type) {
+		case *ast.CompositeLit:
+			// Direct schema definition: &schema.Schema{...}
+			resolvedSchema = schema.NewSchemaInfo(v, pass.TypesInfo)
+		case *ast.CallExpr:
+			// Function call: try to resolve
+			resolvedSchema = resolveSchemaInfoFromCall(pass, v, commonSchemaInfo)
+		default:
+			// Unknown type, skip
+			continue
+		}
+
+		fields = append(fields, helper.SchemaFieldInfo{
+			Name:       *fieldName,
+			SchemaInfo: resolvedSchema,
+			Position:   i,
+		})
+	}
+
+	return fields
+}
+
+// resolveSchemaInfoFromCall resolves schema info from a function call
+// It tries cross-package cache first, then same-package resolution
+func resolveSchemaInfoFromCall(pass *analysis.Pass, call *ast.CallExpr, commonSchemaInfo *CommonSchemaInfo) *schema.SchemaInfo {
+	// Strategy 1: Try to get from commonSchemaInfo cache (for cross-package functions)
+	if selExpr, ok := call.Fun.(*ast.SelectorExpr); ok {
+		if pkgIdent, ok := selExpr.X.(*ast.Ident); ok {
+			if obj := pass.TypesInfo.Uses[pkgIdent]; obj != nil {
+				if pkgName, ok := obj.(*types.PkgName); ok {
+					funcKey := pkgName.Imported().Path() + "." + selExpr.Sel.Name
+					if cachedSchemaInfo, ok := commonSchemaInfo.Functions[funcKey]; ok {
+						return cachedSchemaInfo
+					}
+				}
+			}
+		}
+	}
+
+	// Strategy 2: Try to resolve from same-package function definition
+	return resolveSchemaFromFuncCall(pass, call)
+}
+
+// resolveSchemaFromFuncCall attempts to resolve schema info from a function call
+func resolveSchemaFromFuncCall(pass *analysis.Pass, call *ast.CallExpr) *schema.SchemaInfo {
+	var funcObj types.Object
+
+	// Handle both selector expressions (pkg.Function) and identifiers (Function)
+	switch fun := call.Fun.(type) {
+	case *ast.SelectorExpr:
+		// Cross-package function call like commonschema.ResourceGroupName()
+		funcObj = pass.TypesInfo.Uses[fun.Sel]
+	case *ast.Ident:
+		// Same-package function call like metadataSchema()
+		funcObj = pass.TypesInfo.Uses[fun]
+	default:
+		return nil
+	}
+
+	if funcObj == nil {
+		return nil
+	}
+
+	// Get the function declaration
+	funcDecl := helper.FindFuncDecl(pass, funcObj)
+	if funcDecl == nil {
+		return nil
+	}
+
+	return extractSchemaPropertiesFromFunc(funcDecl, pass.TypesInfo)
 }

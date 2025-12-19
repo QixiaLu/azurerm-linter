@@ -7,7 +7,7 @@ import (
 
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
-	"github.com/qixialu/azurerm-linter/passes/shared/commonschemainfo"
+	"github.com/qixialu/azurerm-linter/passes/schema"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -35,7 +35,7 @@ var Analyzer = &analysis.Analyzer{
 	Name:     analyzerName,
 	Doc:      Doc,
 	Run:      run,
-	Requires: []*analysis.Analyzer{inspect.Analyzer, commonschemainfo.Analyzer},
+	Requires: []*analysis.Analyzer{inspect.Analyzer, schema.CommonAnalyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -51,7 +51,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if !ok {
 		return nil, nil
 	}
-	commonSchemaInfo, ok := pass.ResultOf[commonschemainfo.Analyzer].(*commonschemainfo.SchemaInfo)
+	commonSchemaInfo, ok := pass.ResultOf[schema.CommonAnalyzer].(*schema.CommonSchemaInfo)
 	if !ok {
 		return nil, nil
 	}
@@ -86,7 +86,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Extract schema fields
-		fields := helper.ExtractFromCompositeLit(pass, comp, commonSchemaInfo)
+		fields := schema.ExtractFromCompositeLit(pass, comp, commonSchemaInfo)
 		if len(fields) == 0 {
 			return
 		}

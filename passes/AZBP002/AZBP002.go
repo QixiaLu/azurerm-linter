@@ -7,7 +7,7 @@ import (
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
-	localschema "github.com/qixialu/azurerm-linter/passes/shared/localschemainfo"
+	localschema "github.com/qixialu/azurerm-linter/passes/schema"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -38,11 +38,11 @@ var Analyzer = &analysis.Analyzer{
 	Name:     analyzerName,
 	Doc:      Doc,
 	Run:      run,
-	Requires: []*analysis.Analyzer{localschema.Analyzer},
+	Requires: []*analysis.Analyzer{localschema.LocalAnalyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	schemaInfoCache, ok := pass.ResultOf[localschema.Analyzer].(map[*ast.CompositeLit]*localschema.SchemaInfoWithName)
+	schemaInfoCache, ok := pass.ResultOf[localschema.LocalAnalyzer].(map[*ast.CompositeLit]*localschema.LocalSchemaInfoWithName)
 	if !ok {
 		return nil, nil
 	}

@@ -1,4 +1,4 @@
-package localschemainfo
+package schema
 
 import (
 	"go/ast"
@@ -6,33 +6,33 @@ import (
 	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	helpers "github.com/qixialu/azurerm-linter/helper"
+	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-const analyzerName = "localSchemaInfos"
+const localAnalyzerName = "localschemainfo"
 
-type SchemaInfoWithName struct {
+type LocalSchemaInfoWithName struct {
 	Info         *schema.SchemaInfo
 	PropertyName string
 }
 
-var Analyzer = &analysis.Analyzer{
-	Name:       analyzerName,
+var LocalAnalyzer = &analysis.Analyzer{
+	Name:       localAnalyzerName,
 	Doc:        "Gather all inline schema infos declared in the package",
-	Run:        run,
+	Run:        runLocal,
 	Requires:   []*analysis.Analyzer{inspect.Analyzer},
-	ResultType: reflect.TypeOf(map[*ast.CompositeLit]*SchemaInfoWithName{}),
+	ResultType: reflect.TypeOf(map[*ast.CompositeLit]*LocalSchemaInfoWithName{}),
 }
 
 var skipPackages = []string{"_test", "/migration", "/client", "/validate", "/test-data", "/parse", "/models"}
 var skipFileSuffix = []string{"_test.go", "registration.go"}
 
-func run(pass *analysis.Pass) (interface{}, error) {
-	schemaInfoMap := make(map[*ast.CompositeLit]*SchemaInfoWithName)
+func runLocal(pass *analysis.Pass) (interface{}, error) {
+	schemaInfoMap := make(map[*ast.CompositeLit]*LocalSchemaInfoWithName)
 
 	pkgPath := pass.Pkg.Path()
 	for _, skip := range skipPackages {
@@ -73,7 +73,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Skip if it's not a schemaMap
-		if !helpers.IsSchemaMap(comp) {
+		if !helper.IsSchemaMap(comp) {
 			return
 		}
 
@@ -96,7 +96,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 			schemaInfo := schema.NewSchemaInfo(schemaLit, pass.TypesInfo)
 			if schemaInfo != nil {
-				schemaInfoMap[schemaLit] = &SchemaInfoWithName{
+				schemaInfoMap[schemaLit] = &LocalSchemaInfoWithName{
 					Info:         schemaInfo,
 					PropertyName: propertyName,
 				}
