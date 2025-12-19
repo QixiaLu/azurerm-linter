@@ -6,7 +6,7 @@ import (
 
 	helpers "github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
-	localschema "github.com/qixialu/azurerm-linter/passes/helper/localschemainfo"
+	localschema "github.com/qixialu/azurerm-linter/passes/internal/localschemainfo"
 	"golang.org/x/tools/go/analysis"
 )
 
