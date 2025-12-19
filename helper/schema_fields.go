@@ -1,4 +1,4 @@
-package helpers
+package helper
 
 import (
 	"go/ast"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/bflad/tfproviderlint/helper/astutils"
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	"github.com/qixialu/azurerm-linter/passes/internal/commonschemainfo"
+	"github.com/qixialu/azurerm-linter/passes/shared/commonschemainfo"
 	"golang.org/x/tools/go/analysis"
 )
 

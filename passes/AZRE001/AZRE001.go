@@ -5,7 +5,7 @@ import (
 	"go/token"
 	"strings"
 
-	helpers "github.com/qixialu/azurerm-linter/helper"
+	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -135,9 +135,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if loader.ShouldReport(filename, pos.Line) {
 				pass.Reportf(call.Pos(), "%s: fixed error strings should use %s instead of %s: %s\n",
 					analyzerName,
-					helpers.FixedCode("errors.New()"),
-					helpers.IssueLine("fmt.Errorf()"),
-					helpers.IssueLine(formatStr))
+					helper.FixedCode("errors.New()"),
+					helper.IssueLine("fmt.Errorf()"),
+					helper.IssueLine(formatStr))
 			}
 		}
 	})

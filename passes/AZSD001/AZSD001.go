@@ -5,9 +5,9 @@ import (
 	"go/token"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	helpers "github.com/qixialu/azurerm-linter/helper"
+	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
-	localschema "github.com/qixialu/azurerm-linter/passes/internal/localschemainfo"
+	localschema "github.com/qixialu/azurerm-linter/passes/shared/localschemainfo"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -145,9 +145,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if loader.ShouldReport(pos.Filename, pos.Line) {
 					pass.Reportf(schemaLit.Pos(), "%s: field %q has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
 						analyzerName, fieldName,
-						helpers.IssueLine("MaxItems: 1"),
-						helpers.FixedCode("flattening"),
-						helpers.FixedCode("'// Additional properties will be added per service team confirmation'"))
+						helper.IssueLine("MaxItems: 1"),
+						helper.FixedCode("flattening"),
+						helper.FixedCode("'// Additional properties will be added per service team confirmation'"))
 				}
 			}
 		}

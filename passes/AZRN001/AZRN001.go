@@ -4,9 +4,9 @@ import (
 	"go/ast"
 	"strings"
 
-	helpers "github.com/qixialu/azurerm-linter/helper"
+	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
-	localschema "github.com/qixialu/azurerm-linter/passes/internal/localschemainfo"
+	localschema "github.com/qixialu/azurerm-linter/passes/shared/localschemainfo"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -36,8 +36,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(schemaLit.Pos(), "%s: field %q should use %s suffix instead of %s (suggested: %q)\n",
 					analyzerName, fieldName,
-					helpers.FixedCode("'_percentage'"),
-					helpers.IssueLine("'_in_percent'"),
+					helper.FixedCode("'_percentage'"),
+					helper.IssueLine("'_in_percent'"),
 					suggestedName)
 			}
 		}

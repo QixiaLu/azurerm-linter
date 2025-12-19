@@ -7,7 +7,7 @@ import (
 
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
-	"github.com/qixialu/azurerm-linter/passes/internal/commonschemainfo"
+	"github.com/qixialu/azurerm-linter/passes/shared/commonschemainfo"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -81,12 +81,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Check if it's a schema map
-		if !helpers.IsSchemaMap(comp) {
+		if !helper.IsSchemaMap(comp) {
 			return
 		}
 
 		// Extract schema fields
-		fields := helpers.ExtractFromCompositeLit(pass, comp, commonSchemaInfo)
+		fields := helper.ExtractFromCompositeLit(pass, comp, commonSchemaInfo)
 		if len(fields) == 0 {
 			return
 		}
@@ -96,7 +96,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		for _, f := range pass.Files {
 			fPos := pass.Fset.Position(f.Pos())
 			if fPos.Filename == filename {
-				isNested = helpers.IsNestedSchemaMap(f, comp)
+				isNested = helper.IsNestedSchemaMap(f, comp)
 				break
 			}
 		}
@@ -110,8 +110,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 			pass.Reportf(comp.Pos(), "%s: %s\nExpected order:\n  %s\nActual order:\n  %s\n",
 				analyzerName, issue,
-				helpers.FixedCode(strings.Join(expectedOrder, ", ")),
-				helpers.IssueLine(strings.Join(actualOrder, ", ")))
+				helper.FixedCode(strings.Join(expectedOrder, ", ")),
+				helper.IssueLine(strings.Join(actualOrder, ", ")))
 		}
 	})
 
@@ -127,7 +127,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 // For nested schemas:
 //   - required fields must come before optional fields
 //   - optional fields must come before computed fields
-func checkOrderingIssues(fields []helpers.SchemaFieldInfo, isNested bool) ([]string, string) {
+func checkOrderingIssues(fields []helper.SchemaFieldInfo, isNested bool) ([]string, string) {
 	if len(fields) == 0 {
 		return nil, ""
 	}
@@ -136,8 +136,8 @@ func checkOrderingIssues(fields []helpers.SchemaFieldInfo, isNested bool) ([]str
 	return expectedOrder, validateOrder(fields, expectedOrder, isNested)
 }
 
-func getExpectedOrder(fields []helpers.SchemaFieldInfo, isNested bool) []string {
-	fieldMap := make(map[string]helpers.SchemaFieldInfo)
+func getExpectedOrder(fields []helper.SchemaFieldInfo, isNested bool) []string {
+	fieldMap := make(map[string]helper.SchemaFieldInfo)
 	for _, field := range fields {
 		fieldMap[field.Name] = field
 	}
@@ -225,7 +225,7 @@ func getExpectedOrder(fields []helpers.SchemaFieldInfo, isNested bool) []string 
 	return result
 }
 
-func validateOrder(fields []helpers.SchemaFieldInfo, expectedOrder []string, isNested bool) string {
+func validateOrder(fields []helper.SchemaFieldInfo, expectedOrder []string, isNested bool) string {
 	if len(fields) != len(expectedOrder) {
 		// Skip if len is not equal, it happens when it's failed to extract field's properties;
 		// it might because the schema is defined in another package, except commonschema
