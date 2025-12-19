@@ -5,7 +5,7 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/qixialu/azurerm-linter/helpers"
+	helpers "github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -93,7 +93,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		// Use pre-computed Position for both filename and line number
 		pos := pass.Fset.Position(call.Pos())
 		filename := pos.Filename
-
 		if !relevantFiles[filename] {
 			return
 		}
@@ -116,7 +115,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Check if there are arguments
-		if len(call.Args) == 0 {
+		if len(call.Args) != 1 {
 			return
 		}
 

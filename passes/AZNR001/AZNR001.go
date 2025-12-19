@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/qixialu/azurerm-linter/helpers"
+	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
-	"github.com/qixialu/azurerm-linter/passes/helpers/commonschemainfo"
+	"github.com/qixialu/azurerm-linter/passes/helper/commonschemainfo"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"

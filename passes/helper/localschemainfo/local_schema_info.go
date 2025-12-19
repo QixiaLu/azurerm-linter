@@ -1,4 +1,4 @@
-package schema
+package localschemainfo
 
 import (
 	"go/ast"
@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	"github.com/qixialu/azurerm-linter/helpers"
+	helpers "github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"

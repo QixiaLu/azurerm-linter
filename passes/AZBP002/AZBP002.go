@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
-	"github.com/qixialu/azurerm-linter/helpers"
+	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
-	localschema "github.com/qixialu/azurerm-linter/passes/helpers/localSchemaInfos"
+	localschema "github.com/qixialu/azurerm-linter/passes/helper/localschemainfo"
 	"golang.org/x/tools/go/analysis"
 )
 
