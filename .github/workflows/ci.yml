@@ -15,7 +15,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.23'
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v4
@@ -33,20 +33,15 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.24.11'
 
       - name: Download dependencies
         run: |
           go mod download
-          for moddir in passes/*/testdata; do
-            if [ -f "$moddir/go.mod" ]; then
-              echo "Downloading dependencies in $moddir"
-              (cd "$moddir" && go mod download)
-            fi
-          done
+          cd passes/testdata && go mod download
 
       - name: Run tests
-        run: go test ./passes/... -v
+        run: go test ./... -v
 
   build:
     name: Build
@@ -58,7 +53,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.24.11'
 
       - name: Build
         run: go build -v ./...
