@@ -9,5 +9,5 @@ import (
 
 func TestAZSD001(t *testing.T) {
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, passes.AZSD001Analyzer, "testdata/src/AZSD001")
+	analysistest.Run(t, testdata, passes.AZSD001Analyzer, "testdata/src/azsd001")
 }

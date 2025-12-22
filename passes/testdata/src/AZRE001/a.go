@@ -1,4 +1,4 @@
-package AZRE001
+package azre001
 
 import (
 	"errors"

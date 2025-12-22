@@ -1,4 +1,4 @@
-package AZNR001
+package aznr001
 
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -79,17 +79,17 @@ func argumentsWrong() map[string]*schema.Schema {
 
 // Test: Using schema from helper function in same package
 func argumentsWithImportedSchema() map[string]*schema.Schema {
-    return map[string]*schema.Schema{ // want `name, enabled, not_inline`
-        "name": {
-            Type:     schema.TypeString,
-            Required: true,
-        },
+	return map[string]*schema.Schema{ // want `name, enabled, not_inline`
+		"name": {
+			Type:     schema.TypeString,
+			Required: true,
+		},
 
-        "not_inline": GetPercentageSchema(),
+		"not_inline": GetPercentageSchema(),
 
-        "enabled": {
-            Type:     schema.TypeBool,
-            Optional: true,
-        },
-    }
+		"enabled": {
+			Type:     schema.TypeBool,
+			Optional: true,
+		},
+	}
 }

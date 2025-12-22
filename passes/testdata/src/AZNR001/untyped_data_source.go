@@ -1,7 +1,8 @@
-package AZNR001
+package aznr001
 
 import (
-	"testdata/src/mockPKG/pluginsdk"
+	"testdata/src/mockpkg/pluginsdk"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -68,4 +69,3 @@ func unTypedDataSourceInvalid() *pluginsdk.Resource {
 		},
 	}
 }
-

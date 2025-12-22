@@ -1,4 +1,4 @@
-package AZBP002
+package azbp002
 
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
