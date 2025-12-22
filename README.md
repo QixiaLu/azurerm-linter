@@ -4,7 +4,7 @@ The azurerm-linter tool is an AzureRM Provider code linting tool, specifically t
 
 ## Lint Checks
 
-For additional information about each check, see the documentation in each analyzer's directory (e.g., `passes/AZBP001/README.md`).
+For additional information about each check, see the documentation in passes's directory (e.g., `passes/doc.go`).
 
 ### Azure Best Practice Checks
 
