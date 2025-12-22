@@ -41,7 +41,7 @@ jobs:
           cd passes/testdata && go mod download
 
       - name: Run tests
-        run: cd passes && go test -v
+        run: cd passes && go test ./... -v
 
   build:
     name: Build
