@@ -42,7 +42,6 @@ issues:
   max-same-issues: 0
   
   exclude-rules:
-    # 测试文件可以忽略某些检查
     - path: _test\.go
       linters:
         - errcheck
