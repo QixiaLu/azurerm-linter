@@ -1,0 +1,130 @@
+// Package passes provides analysis passes for the azurerm-linter.
+//
+// This package contains multiple analyzers that enforce coding standards and best practices
+// for the Azure Resource Manager Terraform Provider (azurerm).
+//
+// # Available Analyzers
+//
+// AZBP001 - String Validation Check
+//
+// Reports when String type schema fields (Required or Optional) do not have a ValidateFunc.
+//
+// Reference: https://github.com/hashicorp/terraform-provider-azurerm/blob/main/contributing/topics/guide-new-fields-to-resource.md#schema
+//
+// Flagged:
+//
+//	"name": {
+//	    Type:     pluginsdk.TypeString,
+//	    Required: true,
+//	    // Missing ValidateFunc!
+//	}
+//
+// Correct:
+//
+//	"name": {
+//	    Type:         pluginsdk.TypeString,
+//	    Required:     true,
+//	    ValidateFunc: validation.StringIsNotEmpty,
+//	}
+//
+// AZBP002 - Optional+Computed Documentation Check
+//
+// Reports when schema properties are marked as both Optional and Computed without
+// proper documentation explaining why this pattern is necessary.
+//
+// Reference: https://github.com/hashicorp/terraform-provider-azurerm/blob/main/contributing/topics/best-practices.md#setting-properties-to-optional--computed
+//
+// Flagged:
+//
+//	"etag": {
+//	    Type:     pluginsdk.TypeString,
+//	    Optional: true,
+//	    Computed: true,  // Missing NOTE: O+C comment
+//	}
+//
+// Correct:
+//
+//	"etag": {
+//	    Type:     pluginsdk.TypeString,
+//	    Optional: true,
+//	    // NOTE: O+C Azure generates a new value every time this resource is updated
+//	    Computed: true,
+//	}
+//
+// AZSD001 - MaxItems:1 Flattening Check
+//
+// Reports when blocks with MaxItems: 1 contain only a single nested property without
+// proper justification. These should typically be flattened for better user experience.
+//
+// Flagged:
+//
+//	"config": {
+//	    Type:     pluginsdk.TypeList,
+//	    MaxItems: 1,
+//	    Elem: &pluginsdk.Resource{
+//	        Schema: map[string]*pluginsdk.Schema{
+//	            "value": {...},  // Only one property - should be flattened
+//	        },
+//	    },
+//	}
+//
+// Correct (flattened):
+//
+//	"config_value": {...}
+//
+// Correct (with explanation):
+//
+//	"config": {
+//	    Type:     pluginsdk.TypeList,
+//	    MaxItems: 1,
+//	    // Additional properties will be added per service team confirmation
+//	    Elem: &pluginsdk.Resource{
+//	        Schema: map[string]*pluginsdk.Schema{
+//	            "value": {...},
+//	        },
+//	    },
+//	}
+//
+// AZRN001 - Percentage Suffix Convention
+//
+// Reports when percentage properties use '_in_percent' suffix instead of the
+// standardized '_percentage' suffix.
+//
+// Flagged:
+//
+//	"cpu_threshold_in_percent": {...}
+//
+// Correct:
+//
+//	"cpu_threshold_percentage": {...}
+//
+// AZRE001 - Error Creation Convention
+//
+// Reports when fixed error strings (without format placeholders) use fmt.Errorf()
+// instead of errors.New().
+//
+// Flagged:
+//
+//	return fmt.Errorf("something went wrong")
+//
+// Correct:
+//
+//	return errors.New("something went wrong")
+//	return fmt.Errorf("value %s is invalid", value)  // with placeholder, OK
+//
+// AZNR001 - Schema Field Ordering
+//
+// Reports when schema fields are not ordered according to the provider's conventions.
+// For top-level schemas, checks that name, resource_group_name, and location appear
+// in the correct relative order. For nested schemas, checks that required, optional,
+// and computed fields are properly grouped and alphabetically sorted.
+//
+// Reference: https://github.com/hashicorp/terraform-provider-azurerm/blob/main/contributing/topics/guide-new-resource.md
+//
+// Required order:
+//  1. Special ID fields (name, resource_group_name in order)
+//  2. Location field
+//  3. Required fields (sorted alphabetically for nested schemas)
+//  4. Optional fields (sorted alphabetically)
+//  5. Computed fields (sorted alphabetically)
+package passes

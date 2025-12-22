@@ -1,0 +1,48 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - decorder
+    - dupword
+    - durationcheck
+    - errcheck
+    - gocritic
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - prealloc
+    - predeclared
+    - reassign
+    - staticcheck
+    - tagalign
+    - unconvert
+    - unparam
+    - unused
+    - wastedassign
+    - whitespace
+
+linters-settings:
+  gofmt:
+    simplify: true
+  
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
