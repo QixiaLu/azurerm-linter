@@ -12,7 +12,7 @@ For additional information about each check, see the documentation in passes's d
 |-------|-------------|
 | AZBP001 | check for all String arguments have `ValidationFunc` |
 | AZBP002 | check for `Optional+Computed` fields follow conventions |
-| AZBP003 | check for `pointer.ToEnum` to convert Enum type instead of explicitly type conversion.
+| AZBP003 | check for `pointer.ToEnum` to convert Enum type instead of explicitly type conversion |
 
 ### Azure New Resource Checks
 
