@@ -175,7 +175,10 @@ func isEnumTypeInSDK(pass *analysis.Pass, named *types.Named) bool {
 		return false
 	}
 
-	sig := fn.Type().(*types.Signature)
+	sig, ok := fn.Type().(*types.Signature)
+	if !ok {
+		return false
+	}
 	if sig.Params().Len() != 0 || sig.Results().Len() != 1 {
 		return false
 	}
