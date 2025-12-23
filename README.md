@@ -10,7 +10,7 @@ For additional information about each check, see the documentation in passes's d
 
 | Check | Description |
 |-------|-------------|
-| AZBP001 | check for all String arguments have `ValidationFunc` |
+| AZBP001 | check for all String arguments have `ValidateFunc` |
 | AZBP002 | check for `Optional+Computed` fields follow conventions |
 | AZBP003 | check for `pointer.ToEnum` to convert Enum type instead of explicitly type conversion |
 
