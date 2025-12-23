@@ -10,8 +10,9 @@ For additional information about each check, see the documentation in passes's d
 
 | Check | Description |
 |-------|-------------|
-| AZBP001 | check for all String arguments have validation |
-| AZBP002 | check for Optional+Computed fields follow conventions |
+| AZBP001 | check for all String arguments have `ValidationFunc` |
+| AZBP002 | check for `Optional+Computed` fields follow conventions |
+| AZBP003 | check for `pointer.ToEnum` to convert Enum type instead of explicitly type conversion.
 
 ### Azure New Resource Checks
 
@@ -23,19 +24,19 @@ For additional information about each check, see the documentation in passes's d
 
 | Check | Description |
 |-------|-------------|
-| AZRN001 | check for percentage properties use _percentage suffix instead of _in_percent |
+| AZRN001 | check for percentage properties use `_percentage` suffix instead of `_in_percent` |
 
 ### Azure Resource Error Checks
 
 | Check | Description |
 |-------|-------------|
-| AZRE001 | check for fixed error strings using fmt.Errorf instead of errors.New |
+| AZRE001 | check for fixed error strings using `fmt.Errorf` instead of `errors.New` |
 
 ### Azure Schema Design Checks
 
 | Check | Description |
 |-------|-------------|
-| AZSD001 | check for MaxItems:1 blocks with single property should be flattened |
+| AZSD001 | check for `MaxItems:1` blocks with single property should be flattened |
 
 ## Installation
 

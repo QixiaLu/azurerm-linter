@@ -85,6 +85,24 @@
 //	    },
 //	}
 //
+// AZBP003 - Enum Conversion Convention
+//
+// Reports when go-azure-sdk enum types are converted using pointer.To() with
+// explicit type conversion instead of the generic pointer.ToEnum[T]() function.
+// Using ToEnum is safer as it's specifically designed for enum types.
+//
+// Flagged:
+//
+//	return &managedclusters.ManagedClusterBootstrapProfile{
+//	    ArtifactSource: pointer.To(managedclusters.ArtifactSource(config["artifact_source"].(string))),
+//	}
+//
+// Correct:
+//
+//	return &managedclusters.ManagedClusterBootstrapProfile{
+//	    ArtifactSource: pointer.ToEnum[managedclusters.ArtifactSource](config["artifact_source"].(string)),
+//	}
+//
 // AZRN001 - Percentage Suffix Convention
 //
 // Reports when percentage properties use '_in_percent' suffix instead of the
