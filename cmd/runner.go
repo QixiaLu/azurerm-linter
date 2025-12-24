@@ -1,0 +1,137 @@
+package cmd
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"log"
+	"os"
+
+	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/passes"
+	"golang.org/x/tools/go/analysis/checker"
+	"golang.org/x/tools/go/packages"
+)
+
+// ExitCode represents program exit codes
+type ExitCode int
+
+const (
+	ExitSuccess     ExitCode = 0 // No issues found
+	ExitIssuesFound ExitCode = 1 // Lint issues found
+	ExitError       ExitCode = 2 // Tool error
+)
+
+type Runner struct {
+	Config *Config
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+// NewRunner creates a new Runner with the given config
+func NewRunner(cfg *Config) *Runner {
+	return &Runner{
+		Config: cfg,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+}
+
+// Run executes the linter and returns an exit code
+func (r *Runner) Run(ctx context.Context) ExitCode {
+	defer loader.CleanupWorktree()
+
+	_, err := loader.LoadChanges()
+	if err != nil {
+		log.Printf("Warning: failed to load changed lines filter: %v", err)
+	}
+
+	// Determine package patterns to analyze
+	patterns := r.Config.Patterns
+	if loader.IsEnabled() {
+		files, lines := loader.GetStats()
+		log.Printf("Changed lines filter: tracking %d files with %d changed lines", files, lines)
+
+		// If change tracking is enabled and no patterns specified, use changed packages
+		if len(r.Config.Patterns) == 0 {
+			changedPackages := loader.GetChangedPackages()
+			if len(changedPackages) > 0 {
+				patterns = changedPackages
+				log.Printf("Auto-detected %d changed packages:", len(patterns))
+				for _, pkg := range patterns {
+					log.Printf("  %s", pkg)
+				}
+			}
+		}
+	}
+
+	// Validate we have patterns to analyze
+	if len(patterns) == 0 {
+		fmt.Fprintf(r.Stderr, "Error: no packages to analyze\n")
+		return ExitError
+	}
+
+	log.Printf("Loading packages...")
+	cfg := &packages.Config{
+		Mode: packages.LoadAllSyntax,
+	}
+	pkgs, err := packages.Load(cfg, patterns...)
+	if err != nil {
+		fmt.Fprintf(r.Stderr, "Error: failed to load packages: %v\n", err)
+		return ExitError
+	}
+
+	// Check for package loading errors
+	var hasLoadErrors bool
+	packages.Visit(pkgs, nil, func(pkg *packages.Package) {
+		for _, err := range pkg.Errors {
+			fmt.Fprintf(r.Stderr, "%v\n", err)
+			hasLoadErrors = true
+		}
+	})
+	if hasLoadErrors {
+		return ExitError
+	}
+
+	log.Printf("Running analysis...")
+	graph, err := checker.Analyze(passes.AllChecks, pkgs, nil)
+	if err != nil {
+		fmt.Fprintf(r.Stderr, "Error: analysis failed: %v\n", err)
+		return ExitError
+	}
+
+	// Report diagnostics
+	foundIssues := r.reportDiagnostics(graph)
+	if foundIssues {
+		return ExitIssuesFound
+	}
+
+	log.Printf("✓ Analysis completed successfully with no issues found")
+	return ExitSuccess
+}
+
+// reportDiagnostics reports all diagnostics and returns true if any issues were found
+func (r *Runner) reportDiagnostics(graph *checker.Graph) bool {
+	var foundIssues bool
+	var issueCount int
+
+	for act := range graph.All() {
+		if act.Err != nil {
+			fmt.Fprintf(r.Stderr, "%s: %v\n", act.Package.PkgPath, act.Err)
+			foundIssues = true
+			continue
+		}
+
+		for _, diag := range act.Diagnostics {
+			foundIssues = true
+			issueCount++
+			fmt.Fprintf(r.Stdout, "%s: %s\n", act.Package.Fset.Position(diag.Pos), diag.Message)
+		}
+	}
+
+	if foundIssues {
+		fmt.Fprintf(r.Stderr, "\n Found %d issue(s)\n", issueCount)
+	}
+
+	return foundIssues
+}

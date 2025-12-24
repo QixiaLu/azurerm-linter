@@ -99,7 +99,7 @@ func checkZeroInitPattern(pass *analysis.Pass, inspector *inspector.Inspector) {
 			pos := pass.Fset.Position(assignStmt.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(assignStmt.Pos(),
-					"%s: can simplify with `pointer.From()` since variable is initialized to zero value",
+					"%s: can simplify with `pointer.From()` since variable is initialized to zero value\n",
 					azbp004Name)
 			}
 		}
