@@ -17,6 +17,8 @@ const AZNR001Doc = `check for Schema field ordering
 
 The AZNR001 analyzer reports cases of schemas where fields are not ordered correctly.
 
+When git filter is applied, it only works on newly created files.
+
 Schema fields should be ordered as follows:
 1. Any fields that make up the resource's ID, with the last user specified segment 
    (usually the resource's name) first. (e.g. 'name' then 'resource_group_name', 

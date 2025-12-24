@@ -8,7 +8,10 @@ import (
 var AllChecks = []*analysis.Analyzer{
 	AZBP001Analyzer,
 	AZBP002Analyzer,
+	AZBP003Analyzer,
+	AZBP004Analyzer,
 	AZSD001Analyzer,
+	AZSD002Analyzer,
 	AZRN001Analyzer,
 	AZRE001Analyzer,
 	AZNR001Analyzer,

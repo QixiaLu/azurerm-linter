@@ -2,7 +2,6 @@ package passes
 
 import (
 	"go/ast"
-	"go/token"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/qixialu/azurerm-linter/helper"
@@ -81,32 +80,13 @@ func runAZSD001(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Check if Elem is &schema.Resource{...}
-		var resourceSchema *ast.CompositeLit
-		if unary, ok := elemKV.Value.(*ast.UnaryExpr); ok && unary.Op == token.AND {
-			if compLit, ok := unary.X.(*ast.CompositeLit); ok {
-				resourceSchema = compLit
-			}
-		}
-
+		resourceSchema := helper.GetResourceSchemaFromElem(elemKV)
 		if resourceSchema == nil {
 			continue
 		}
 
 		// Find the Schema field in the Resource
-		var nestedSchemaMap *ast.CompositeLit
-		for _, fld := range resourceSchema.Elts {
-			fieldKV, ok := fld.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-			if ident, ok := fieldKV.Key.(*ast.Ident); ok && ident.Name == "Schema" {
-				if compLit, ok := fieldKV.Value.(*ast.CompositeLit); ok {
-					nestedSchemaMap = compLit
-				}
-				break
-			}
-		}
-
+		nestedSchemaMap := helper.GetNestedSchemaMap(resourceSchema)
 		if nestedSchemaMap == nil {
 			continue
 		}

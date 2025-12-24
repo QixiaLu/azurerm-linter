@@ -2,7 +2,11 @@ module testdata
 
 go 1.24.11
 
-require github.com/hashicorp/terraform-plugin-sdk/v2 v2.34.0
+require (
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.34.0
+	github.com/hashicorp/go-azure-helpers/lang/pointer v0.0.0
+	github.com/hashicorp/go-azure-sdk/resource-manager/compute/2024-03-01/virtualmachines v0.0.0
+)
 
 require (
 	github.com/agext/levenshtein v1.2.2 // indirect
@@ -35,4 +39,9 @@ require (
 	golang.org/x/tools v0.13.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.34.0 // indirect
+)
+
+replace (
+	github.com/hashicorp/go-azure-helpers/lang/pointer => ./src/github.com/hashicorp/go-azure-helpers/lang/pointer
+	github.com/hashicorp/go-azure-sdk/resource-manager/compute/2024-03-01/virtualmachines => ./src/github.com/hashicorp/go-azure-sdk/resource-manager/compute/2024-03-01/virtualmachines
 )
