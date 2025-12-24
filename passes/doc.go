@@ -5,7 +5,7 @@
 //
 // # Available Analyzers
 //
-// AZBP001 - String Validation Check
+// # AZBP001 - String Validation Check
 //
 // Reports when String type schema fields (Required or Optional) do not have a ValidateFunc.
 //
@@ -85,7 +85,7 @@
 //	    },
 //	}
 //
-// AZBP003 - Enum Conversion Convention
+// # AZBP003 - Enum Conversion Convention
 //
 // Reports when go-azure-sdk enum types are converted using pointer.To() with
 // explicit type conversion instead of the generic pointer.ToEnum[T]() function.
@@ -103,7 +103,24 @@
 //	    ArtifactSource: pointer.ToEnum[managedclusters.ArtifactSource](config["artifact_source"].(string)),
 //	}
 //
-// AZRN001 - Percentage Suffix Convention
+// # AZBP004 - Pointer Dereferencing Convention
+//
+// Reports when a variable is initialized to its zero value and then conditionally
+// assigned via pointer dereferencing. This pattern can be simplified using pointer.From(),
+// which is more concise and safely handles nil cases by returning the zero value.
+//
+// Flagged:
+//
+//	name := ""
+//	if input.Name != nil {
+//	    name = *input.Name
+//	}
+//
+// Correct:
+//
+//	name := pointer.From(input.Name)
+//
+// # AZRN001 - Percentage Suffix Convention
 //
 // Reports when percentage properties use '_in_percent' suffix instead of the
 // standardized '_percentage' suffix.
@@ -116,7 +133,7 @@
 //
 //	"cpu_threshold_percentage": {...}
 //
-// AZRE001 - Error Creation Convention
+// # AZRE001 - Error Creation Convention
 //
 // Reports when fixed error strings (without format placeholders) use fmt.Errorf()
 // instead of errors.New().
@@ -130,7 +147,7 @@
 //	return errors.New("something went wrong")
 //	return fmt.Errorf("value %s is invalid", value)  // with placeholder, OK
 //
-// AZNR001 - Schema Field Ordering
+// # AZNR001 - Schema Field Ordering
 //
 // Reports when schema fields are not ordered according to the provider's conventions.
 // For top-level schemas, checks that name, resource_group_name, and location appear
@@ -138,6 +155,8 @@
 // and computed fields are properly grouped and alphabetically sorted.
 //
 // Reference: https://github.com/hashicorp/terraform-provider-azurerm/blob/main/contributing/topics/guide-new-resource.md
+//
+// When git filter is enabled, it only validates on newly created files
 //
 // Required order:
 //  1. Special ID fields (name, resource_group_name in order)
