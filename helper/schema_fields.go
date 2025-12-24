@@ -3,6 +3,7 @@ package helper
 import (
 	"go/ast"
 	"go/types"
+	"go/token"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"golang.org/x/tools/go/analysis"
@@ -100,4 +101,35 @@ func FindFuncDecl(pass *analysis.Pass, funcObj types.Object) *ast.FuncDecl {
 	}
 
 	return nil
+}
+
+// GetResourceSchemaFromElem extracts the &schema.Resource{...} composite literal from an Elem field
+// Returns nil if Elem is not a pointer to a Resource composite literal
+func GetResourceSchemaFromElem(elemKV *ast.KeyValueExpr) *ast.CompositeLit {
+	if unary, ok := elemKV.Value.(*ast.UnaryExpr); ok && unary.Op == token.AND {
+		if compLit, ok := unary.X.(*ast.CompositeLit); ok {
+			return compLit
+		}
+	}
+
+	return nil
+}
+
+// GetNestedSchemaMap extracts the Schema field value from a Resource composite literal
+// Returns nil if the Schema field is not found or is not a composite literal
+func GetNestedSchemaMap(resourceSchema *ast.CompositeLit) *ast.CompositeLit {
+	var nestedSchemaMap *ast.CompositeLit
+	for _, fld := range resourceSchema.Elts {
+		fieldKV, ok := fld.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		if ident, ok := fieldKV.Key.(*ast.Ident); ok && ident.Name == "Schema" {
+			if compLit, ok := fieldKV.Value.(*ast.CompositeLit); ok {
+				nestedSchemaMap = compLit
+			}
+			break
+		}
+	}
+	return nestedSchemaMap
 }

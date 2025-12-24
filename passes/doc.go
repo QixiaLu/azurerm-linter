@@ -85,6 +85,56 @@
 //	    },
 //	}
 //
+// # AZSD002 - AtLeastOneOf Validation for TypeList Fields
+//
+// Reports when a TypeList block contains multiple optional nested fields but none
+// of them have AtLeastOneOf validation set. When all nested fields are optional,
+// at least one should use AtLeastOneOf to ensure users specify at least one option.
+//
+// Flagged:
+//
+//	"setting": {
+//	    Type:     pluginsdk.TypeList,
+//	    Optional: true,
+//	    MaxItems: 1,
+//	    Elem: &pluginsdk.Resource{
+//	        Schema: map[string]*pluginsdk.Schema{
+//	            "linux": {
+//	                Type:     pluginsdk.TypeList,
+//	                Optional: true,
+//	                // Missing AtLeastOneOf!
+//	            },
+//	            "windows": {
+//	                Type:     pluginsdk.TypeList,
+//	                Optional: true,
+//	                // Missing AtLeastOneOf!
+//	            },
+//	        },
+//	    },
+//	}
+//
+// Correct:
+//
+//	"setting": {
+//	    Type:     pluginsdk.TypeList,
+//	    Optional: true,
+//	    MaxItems: 1,
+//	    Elem: &pluginsdk.Resource{
+//	        Schema: map[string]*pluginsdk.Schema{
+//	            "linux": {
+//	                Type:     pluginsdk.TypeList,
+//	                Optional: true,
+//	                AtLeastOneOf: []string{"setting.0.linux", "setting.0.windows"},
+//	            },
+//	            "windows": {
+//	                Type:     pluginsdk.TypeList,
+//	                Optional: true,
+//	                AtLeastOneOf: []string{"setting.0.linux", "setting.0.windows"},
+//	            },
+//	        },
+//	    },
+//	}
+//
 // # AZBP003 - Enum Conversion Convention
 //
 // Reports when go-azure-sdk enum types are converted using pointer.To() with
