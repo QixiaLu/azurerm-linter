@@ -3,24 +3,32 @@ package loader
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/go-git/go-git/v5"
 )
 
 const servicePathPrefix = "internal/services/"
 
 var (
-	useGitRepo = flag.Bool("use-git-repo", true, "use git repository to calculate diff")
-	remoteName = flag.String("remote", "", "remote name (default: auto-detect)")
-	baseBranch = flag.String("base-branch", "", "base branch (default: main)")
-	diffFile   = flag.String("diff-file", "", "path to a diff file to parse")
+	// Filtering control
+	noFilter = flag.Bool("no-filter", false, "disable change filtering, analyze all files")
 
-	prNumber = flag.Int("pr-number", 0, "GitHub PR number")
-	repoName = flag.String("repo-name", "terraform-provider-azurerm", "GitHub repository name")
+	// PR mode
+	prNumber = flag.Int("pr", 0, "analyze GitHub PR by number")
+
+	// Git comparison options
+	remoteName = flag.String("remote", "", "git remote name (auto-detect: upstream > origin)")
+	baseBranch = flag.String("base", "", "base branch (auto-detect from git config or 'main')")
+
+	// Alternative input
+	diffFile = flag.String("diff", "", "read diff from file instead of git")
 
 	hunkRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@`)
 
@@ -54,15 +62,32 @@ type ChangeLoader interface {
 	Load() (*ChangeSet, error)
 }
 
-// LoadChanges sets up the changed lines tracking system and returns a ChangeSet
+// LoadChanges determines the appropriate ChangeLoader
+// Returns nil if filtering is disabled or not applicable
 func LoadChanges() (*ChangeSet, error) {
+	// Check if user explicitly disabled filtering
+	if noFilter != nil && *noFilter {
+		log.Println("Change filtering disabled (--no-filter) - analyzing all files")
+		return nil, nil
+	}
+
 	var loader ChangeLoader
 
-	// Check if user provided a diff file
+	// Priority 1: diff file
 	if diffFile != nil && *diffFile != "" {
+		log.Printf("Using diff file: %s", *diffFile)
 		loader = &DiffFileLoader{filePath: *diffFile}
-	} else if *useGitRepo {
+	} else if *prNumber > 0 {
+		// Priority 2: PR mode
 		loader = selectGitLoader()
+	} else {
+		// Priority 3: local git mode (requires git repo)
+		if _, err := git.PlainOpen("."); err == nil {
+			log.Println("Using local git diff mode")
+			loader = &LocalGitLoader{}
+		} else {
+			return nil, fmt.Errorf("not in a git repository. Please run from a git repository, use --diff to provide a diff file, or use --no-filter to analyze all files")
+		}
 	}
 
 	var cs *ChangeSet
@@ -116,8 +141,6 @@ func setupPRWorktree(prNum int) {
 	if err := os.Chdir(worktreePath); err != nil {
 		log.Fatalf("Failed to change to worktree directory: %v", err)
 	}
-
-	log.Printf("✓ Switched to worktree, analyzing PR code...")
 }
 
 // ShouldReport checks if a specific line in a file should be reported

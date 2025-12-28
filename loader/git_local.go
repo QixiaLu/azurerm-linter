@@ -22,15 +22,10 @@ func (l *LocalGitLoader) Load() (*ChangeSet, error) {
 		return nil, fmt.Errorf("failed to open repository: %w", err)
 	}
 
-	log.Println("Using git method (local mode)")
-
 	targetCommit, _, err := resolveForLocal(repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve target: %w", err)
 	}
-
-	log.Printf("Comparing: %s..worktree (includes uncommitted changes)",
-		targetCommit.Hash.String()[:7])
 
 	if err := processDiffWithWorktree(cs, targetCommit); err != nil {
 		return nil, fmt.Errorf("failed to parse diff: %w", err)
@@ -86,8 +81,6 @@ func resolveForLocal(repo *git.Repository) (*object.Commit, *git.Worktree, error
 	if err != nil {
 		return nil, nil, err
 	}
-
-	log.Printf("Target: %s/%s", targetRemote, targetBranch)
 
 	targetRef, err := repo.Reference(
 		plumbing.NewRemoteReferenceName(targetRemote, targetBranch),
@@ -163,11 +156,9 @@ func getUserSpecifiedTarget() (remote, branch string, ok bool) {
 
 	if hasRemote {
 		remote = *remoteName
-		log.Printf("Using user-specified remote: %s", remote)
 	}
 	if hasBranch {
 		branch = *baseBranch
-		log.Printf("Using user-specified branch: %s", branch)
 	}
 
 	return remote, branch, true

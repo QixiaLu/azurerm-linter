@@ -77,8 +77,6 @@ func (l *WorktreeLoader) detectRemoteForPR() (string, error) {
 
 // Setup fetches the PR and creates a temporary worktree
 func (l *WorktreeLoader) Setup() (string, error) {
-	log.Printf("Setting up worktree for PR #%d...", l.prNumber)
-
 	// 0. Verify we're in a git repository
 	if _, err := git.PlainOpen("."); err != nil {
 		return "", fmt.Errorf("not in a git repository. Please run this tool from the terraform-provider-azurerm directory")
@@ -98,7 +96,7 @@ func (l *WorktreeLoader) Setup() (string, error) {
 
 	// 3. Fetch the PR ref
 	prRef := fmt.Sprintf("refs/pull/%d/head", l.prNumber)
-	log.Printf("Fetching %s from remote '%s' (%s/%s)...", prRef, l.remoteName, l.owner, l.repo)
+	log.Printf("Fetching PR #%d from remote '%s' (%s/%s)...", l.prNumber, l.remoteName, l.owner, l.repo)
 
 	cmd := exec.Command("git", "fetch", "--depth=1", l.remoteName, prRef)
 	output, err := cmd.CombinedOutput()
@@ -111,19 +109,17 @@ func (l *WorktreeLoader) Setup() (string, error) {
 
 	// Clean up any existing worktree with the same name
 	if _, err := os.Stat(l.worktreePath); err == nil {
-		log.Printf("Removing existing worktree at %s...", l.worktreePath)
 		l.Cleanup()
 	}
 
 	// 5. Create the worktree
-	log.Printf("Creating worktree at %s...", l.worktreePath)
 	cmd = exec.Command("git", "worktree", "add", l.worktreePath, "FETCH_HEAD")
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to create worktree: %w\n%s", err, string(output))
 	}
 
-	log.Printf("✓ Worktree created successfully at %s", l.worktreePath)
+	log.Printf("✓ Worktree created at %s", l.worktreePath)
 	return l.worktreePath, nil
 }
 
@@ -135,7 +131,6 @@ func (l *WorktreeLoader) fetchPRDetails() error {
 	}
 
 	l.baseBranch = prInfo.Base.Ref
-	log.Printf("PR base branch: %s", l.baseBranch)
 
 	return nil
 }
@@ -156,8 +151,6 @@ func (l *WorktreeLoader) Cleanup() error {
 		return nil
 	}
 
-	log.Printf("Cleaning up worktree at %s...", l.worktreePath)
-
 	// First try to remove the worktree using git
 	cmd := exec.Command("git", "worktree", "remove", l.worktreePath, "--force")
 	output, err := cmd.CombinedOutput()
@@ -176,6 +169,5 @@ func (l *WorktreeLoader) Cleanup() error {
 		}
 	}
 
-	log.Printf("✓ Worktree cleaned up")
 	return nil
 }

@@ -15,8 +15,6 @@ type DiffFileLoader struct {
 func (l *DiffFileLoader) Load() (*ChangeSet, error) {
 	cs := NewChangeSet()
 
-	log.Printf("Reading diff from file: %s", l.filePath)
-
 	content, err := os.ReadFile(l.filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read diff file: %w", err)
