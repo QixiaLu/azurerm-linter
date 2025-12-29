@@ -19,8 +19,24 @@ type PRFile struct {
 	Patch     string `json:"patch"`
 }
 
+// PRInfo represents GitHub PR information
+type PRInfo struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	Base   struct {
+		Ref string `json:"ref"`
+		SHA string `json:"sha"`
+	} `json:"base"`
+	Head struct {
+		Ref string `json:"ref"`
+		SHA string `json:"sha"`
+	} `json:"head"`
+}
+
 // GitHubLoader loads changes from GitHub API
-type GitHubLoader struct{}
+type GitHubLoader struct {
+	prNumber int
+}
 
 // Load loads changes from GitHub API and returns a ChangeSet
 func (l *GitHubLoader) Load() (*ChangeSet, error) {
@@ -29,10 +45,7 @@ func (l *GitHubLoader) Load() (*ChangeSet, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	owner, name := getRepoInfo()
 
-	prNum, err := getPRNumber()
-	if err != nil {
-		return nil, err
-	}
+	prNum := l.prNumber
 
 	log.Printf("Fetching PR #%d changes from GitHub API (%s/%s)...", prNum, owner, name)
 
@@ -111,21 +124,46 @@ func fetchPRFiles(token, owner, name string, prNum int) ([]PRFile, error) {
 
 // getRepoInfo gets the repository owner and name
 func getRepoInfo() (owner, name string) {
-	// Default to terraform-provider-azurerm
-	owner = "hashicorp"
-	name = "terraform-provider-azurerm"
-
-	if *repoName != "" {
-		name = *repoName
-	}
-
-	return owner, name
+	return "hashicorp", "terraform-provider-azurerm"
 }
 
-// getPRNumber gets the PR number from flags
-func getPRNumber() (int, error) {
-	if *prNumber > 0 {
-		return *prNumber, nil
+// fetchPRInfo fetches PR information from GitHub API
+func fetchPRInfo(token, owner, name string, prNum int) (*PRInfo, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", owner, name, prNum)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
 	}
-	return 0, fmt.Errorf("PR number not specified, use --pr-number flag")
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Warning: failed to close response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("GitHub API returned status %d, failed to read body: %w", resp.StatusCode, err)
+		}
+		return nil, fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var prInfo PRInfo
+	if err := json.NewDecoder(resp.Body).Decode(&prInfo); err != nil {
+		return nil, err
+	}
+
+	return &prInfo, nil
 }

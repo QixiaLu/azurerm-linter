@@ -2,31 +2,29 @@ package loader
 
 import (
 	"bufio"
-	"flag"
+	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/go-git/go-git/v5"
 )
 
 const servicePathPrefix = "internal/services/"
 
 var (
-	useGitRepo = flag.Bool("use-git-repo", true, "use git repository to calculate diff")
-	remoteName = flag.String("remote", "", "remote name (default: auto-detect)")
-	baseBranch = flag.String("base-branch", "", "base branch (default: main)")
-	diffFile   = flag.String("diff-file", "", "path to a diff file to parse")
-
-	useGitHubAPI = flag.Bool("use-github-api", false, "use GitHub API to get PR changes")
-	prNumber     = flag.Int("pr-number", 0, "GitHub PR number")
-	repoName     = flag.String("repo-name", "terraform-provider-azurerm", "GitHub repository name")
-
 	hunkRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@`)
 
 	// globalChangeSet holds the current loaded ChangeSet
 	// Set once by LoadChanges() before analyzers run, then only read by analyzers
 	globalChangeSet *ChangeSet
+
+	// worktreeCleanup holds the cleanup function for PR worktree
+	worktreeCleanup func() error
+	originalDir     string
 )
 
 // ChangeSet represents a set of changes loaded from a source
@@ -50,15 +48,42 @@ type ChangeLoader interface {
 	Load() (*ChangeSet, error)
 }
 
-// LoadChanges sets up the changed lines tracking system and returns a ChangeSet
-func LoadChanges() (*ChangeSet, error) {
+// LoaderOptions holds configuration for change loading
+type LoaderOptions struct {
+	NoFilter   bool
+	PRNumber   int
+	RemoteName string
+	BaseBranch string
+	DiffFile   string
+}
+
+// LoadChanges determines the appropriate ChangeLoader based on options
+// Returns nil if filtering is disabled or not applicable
+func LoadChanges(opts LoaderOptions) (*ChangeSet, error) {
+	// Check if user explicitly disabled filtering
+	if opts.NoFilter {
+		log.Println("Change filtering disabled (--no-filter) - analyzing all files")
+		return nil, nil
+	}
+
 	var loader ChangeLoader
 
-	// Check if user provided a diff file
-	if diffFile != nil && *diffFile != "" {
-		loader = &DiffFileLoader{filePath: *diffFile}
-	} else if *useGitRepo {
-		loader = selectGitLoader()
+	switch {
+	case opts.DiffFile != "":
+		log.Printf("Using diff file: %s", opts.DiffFile)
+		loader = &DiffFileLoader{filePath: opts.DiffFile}
+	case opts.PRNumber > 0:
+		loader = selectGitLoader(opts)
+	default:
+		if _, err := git.PlainOpen("."); err == nil {
+			log.Println("Using local git diff mode")
+			loader = &LocalGitLoader{
+				remoteName: opts.RemoteName,
+				baseBranch: opts.BaseBranch,
+			}
+		} else {
+			return nil, fmt.Errorf("not in a git repository. Please run from a git repository, use --diff to provide a diff file, or use --no-filter to analyze all files")
+		}
 	}
 
 	var cs *ChangeSet
@@ -81,13 +106,40 @@ func LoadChanges() (*ChangeSet, error) {
 }
 
 // selectGitLoader selects the appropriate git-based loader
-func selectGitLoader() ChangeLoader {
-	if *useGitHubAPI && *prNumber > 0 {
-		log.Printf("Using GitHub API for PR #%d", *prNumber)
-		return &GitHubLoader{}
+func selectGitLoader(opts LoaderOptions) ChangeLoader {
+	if opts.PRNumber > 0 {
+		setupPRWorktree(opts.PRNumber, opts.RemoteName, opts.BaseBranch)
+
+		log.Printf("Using GitHub API for PR #%d changed lines", opts.PRNumber)
+		return &GitHubLoader{prNumber: opts.PRNumber}
 	}
 
-	return &LocalGitLoader{}
+	return &LocalGitLoader{
+		remoteName: opts.RemoteName,
+		baseBranch: opts.BaseBranch,
+	}
+}
+
+func setupPRWorktree(prNum int, remoteName, baseBranch string) {
+	worktreeLoader := NewWorktreeLoader(prNum, remoteName, baseBranch)
+
+	// Setup worktree
+	worktreePath, err := worktreeLoader.Setup()
+	if err != nil {
+		log.Fatalf("Failed to setup worktree: %v", err)
+	}
+
+	worktreeCleanup = worktreeLoader.Cleanup
+
+	// Save current directory and switch to worktree
+	originalDir, err = os.Getwd()
+	if err != nil {
+		log.Fatalf("Failed to get current directory: %v", err)
+	}
+
+	if err := os.Chdir(worktreePath); err != nil {
+		log.Fatalf("Failed to change to worktree directory: %v", err)
+	}
 }
 
 // ShouldReport checks if a specific line in a file should be reported
@@ -128,6 +180,28 @@ func GetStats() (filesCount int, totalLines int) {
 		return 0, 0
 	}
 	return globalChangeSet.getStats()
+}
+
+// GetChangedPackages returns a list of package paths based on changed files
+func GetChangedPackages() []string {
+	if globalChangeSet == nil || len(globalChangeSet.changedFiles) == 0 {
+		return nil
+	}
+	return globalChangeSet.getChangedPackages()
+}
+
+// CleanupWorktree cleans up the PR worktree and restores original directory
+func CleanupWorktree() {
+	if originalDir != "" {
+		if err := os.Chdir(originalDir); err != nil {
+			log.Printf("Warning: failed to return to original directory: %v", err)
+		}
+	}
+	if worktreeCleanup != nil {
+		if err := worktreeCleanup(); err != nil {
+			log.Printf("Warning: failed to cleanup worktree: %v", err)
+		}
+	}
 }
 
 // ShouldReport checks if a specific line in a file should be reported
@@ -196,6 +270,43 @@ func (cs *ChangeSet) getTotalChangedLines() int {
 		total += len(lines)
 	}
 	return total
+}
+
+// getChangedPackages returns a list of unique package paths based on changed files
+func (cs *ChangeSet) getChangedPackages() []string {
+	packageSet := make(map[string]bool)
+
+	for filePath := range cs.changedFiles {
+		// Extract service package path from file path
+		// e.g., "internal/services/manageddevopspools/client/client.go" -> "./internal/services/manageddevopspools"
+		// e.g., "internal/services/policy/policy_assignment_resource.go" -> "./internal/services/policy"
+
+		if !strings.Contains(filePath, servicePathPrefix) {
+			continue
+		}
+
+		// Split by service prefix to get the service and subpath
+		parts := strings.SplitN(filePath, servicePathPrefix, 2)
+		if len(parts) < 2 {
+			continue
+		}
+
+		// Get the service name (first directory after internal/services/)
+		serviceParts := strings.Split(parts[1], "/")
+		if len(serviceParts) > 0 {
+			serviceName := serviceParts[0]
+			packagePath := "./" + servicePathPrefix + serviceName
+			packageSet[packagePath] = true
+		}
+	}
+
+	// Convert map to slice
+	packages := make([]string, 0, len(packageSet))
+	for pkg := range packageSet {
+		packages = append(packages, pkg)
+	}
+
+	return packages
 }
 
 // parsePatch parses a patch string and extracts changed line numbers into the ChangeSet

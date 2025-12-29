@@ -1,32 +1,41 @@
 package main
 
 import (
-	"flag"
-	"log"
+	"context"
+	"fmt"
+	"os"
 
-	"github.com/qixialu/azurerm-linter/loader"
-	"github.com/qixialu/azurerm-linter/passes"
-	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/multichecker"
+	"github.com/qixialu/azurerm-linter/cmd"
 )
 
 func main() {
-	// Parse flags first to get changed lines configuration
-	flag.Parse()
+	os.Exit(run())
+}
 
-	// Load changed lines filter
-	_, err := loader.LoadChanges()
+func run() int {
+	// Parse configuration from flags
+	cfg, err := cmd.ParseFlags()
 	if err != nil {
-		log.Printf("Warning: failed to load changed lines filter: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Usage: azurerm-linter [flags] <package patterns>\n")
+		return 3
 	}
 
-	// Show filter stats if enabled
-	if loader.IsEnabled() {
-		files, lines := loader.GetStats()
-		log.Printf("Changed lines filter: tracking %d files with %d changed lines", files, lines)
+	// Handle help flag
+	if cfg.ShowHelp {
+		cfg.PrintHelp()
+		return 0
 	}
 
-	var analyzers []*analysis.Analyzer
-	analyzers = append(analyzers, passes.AllChecks...)
-	multichecker.Main(analyzers...)
+	// Handle list checks flag
+	if cfg.ListChecks {
+		cmd.PrintChecks()
+		return 0
+	}
+
+	// Create and run the linter
+	runner := cmd.NewRunner(cfg)
+	exitCode := runner.Run(context.Background())
+
+	return int(exitCode)
 }

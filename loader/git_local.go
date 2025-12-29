@@ -11,7 +11,10 @@ import (
 )
 
 // LocalGitLoader loads changes from local git repository
-type LocalGitLoader struct{}
+type LocalGitLoader struct {
+	remoteName string
+	baseBranch string
+}
 
 // Load loads changes from local git repository and returns a ChangeSet
 func (l *LocalGitLoader) Load() (*ChangeSet, error) {
@@ -22,15 +25,10 @@ func (l *LocalGitLoader) Load() (*ChangeSet, error) {
 		return nil, fmt.Errorf("failed to open repository: %w", err)
 	}
 
-	log.Println("Using git method (local mode)")
-
-	targetCommit, _, err := resolveForLocal(repo)
+	targetCommit, _, err := resolveForLocal(repo, l.remoteName, l.baseBranch)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve target: %w", err)
 	}
-
-	log.Printf("Comparing: %s..worktree (includes uncommitted changes)",
-		targetCommit.Hash.String()[:7])
 
 	if err := processDiffWithWorktree(cs, targetCommit); err != nil {
 		return nil, fmt.Errorf("failed to parse diff: %w", err)
@@ -59,7 +57,7 @@ func processDiffWithWorktree(cs *ChangeSet, baseCommit *object.Commit) error {
 }
 
 // resolveForLocal resolves the target commit and worktree for comparison
-func resolveForLocal(repo *git.Repository) (*object.Commit, *git.Worktree, error) {
+func resolveForLocal(repo *git.Repository, remoteName, baseBranch string) (*object.Commit, *git.Worktree, error) {
 	head, err := repo.Head()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get HEAD: %w", err)
@@ -82,12 +80,10 @@ func resolveForLocal(repo *git.Repository) (*object.Commit, *git.Worktree, error
 		return nil, nil, fmt.Errorf("failed to get worktree: %w", err)
 	}
 
-	targetRemote, targetBranch, err := detectTargetBranch(repo, currentBranch)
+	targetRemote, targetBranch, err := detectTargetBranch(repo, currentBranch, remoteName, baseBranch)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	log.Printf("Target: %s/%s", targetRemote, targetBranch)
 
 	targetRef, err := repo.Reference(
 		plumbing.NewRemoteReferenceName(targetRemote, targetBranch),
@@ -115,12 +111,15 @@ func resolveForLocal(repo *git.Repository) (*object.Commit, *git.Worktree, error
 }
 
 // detectTargetBranch detects the target remote and branch for comparison
-func detectTargetBranch(repo *git.Repository, currentBranch string) (string, string, error) {
+func detectTargetBranch(repo *git.Repository, currentBranch, remoteName, baseBranch string) (string, string, error) {
 	var detectedRemote, detectedBranch string
 
-	if userRemote, userBranch, ok := getUserSpecifiedTarget(); ok {
-		detectedRemote = userRemote
-		detectedBranch = userBranch
+	// Check user-specified options
+	if remoteName != "" {
+		detectedRemote = remoteName
+	}
+	if baseBranch != "" {
+		detectedBranch = baseBranch
 	}
 
 	if detectedRemote == "" || detectedBranch == "" {
@@ -150,27 +149,6 @@ func detectTargetBranch(repo *git.Repository, currentBranch string) (string, str
 	}
 
 	return detectedRemote, detectedBranch, nil
-}
-
-// getUserSpecifiedTarget returns user-specified remote and branch from flags
-func getUserSpecifiedTarget() (remote, branch string, ok bool) {
-	hasRemote := remoteName != nil && *remoteName != ""
-	hasBranch := baseBranch != nil && *baseBranch != ""
-
-	if !hasRemote && !hasBranch {
-		return "", "", false
-	}
-
-	if hasRemote {
-		remote = *remoteName
-		log.Printf("Using user-specified remote: %s", remote)
-	}
-	if hasBranch {
-		branch = *baseBranch
-		log.Printf("Using user-specified branch: %s", branch)
-	}
-
-	return remote, branch, true
 }
 
 // getUpstreamFromConfig gets upstream remote and branch from git config
