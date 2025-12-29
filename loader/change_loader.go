@@ -2,7 +2,6 @@ package loader
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -17,19 +16,6 @@ import (
 const servicePathPrefix = "internal/services/"
 
 var (
-	// Filtering control
-	noFilter = flag.Bool("no-filter", false, "disable change filtering, analyze all files")
-
-	// PR mode
-	prNumber = flag.Int("pr", 0, "analyze GitHub PR by number")
-
-	// Git comparison options
-	remoteName = flag.String("remote", "", "git remote name (auto-detect: upstream > origin)")
-	baseBranch = flag.String("base", "", "base branch (auto-detect from git config or 'main')")
-
-	// Alternative input
-	diffFile = flag.String("diff", "", "read diff from file instead of git")
-
 	hunkRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@`)
 
 	// globalChangeSet holds the current loaded ChangeSet
@@ -62,11 +48,20 @@ type ChangeLoader interface {
 	Load() (*ChangeSet, error)
 }
 
-// LoadChanges determines the appropriate ChangeLoader
+// LoaderOptions holds configuration for change loading
+type LoaderOptions struct {
+	NoFilter   bool
+	PRNumber   int
+	RemoteName string
+	BaseBranch string
+	DiffFile   string
+}
+
+// LoadChanges determines the appropriate ChangeLoader based on options
 // Returns nil if filtering is disabled or not applicable
-func LoadChanges() (*ChangeSet, error) {
+func LoadChanges(opts LoaderOptions) (*ChangeSet, error) {
 	// Check if user explicitly disabled filtering
-	if noFilter != nil && *noFilter {
+	if opts.NoFilter {
 		log.Println("Change filtering disabled (--no-filter) - analyzing all files")
 		return nil, nil
 	}
@@ -74,17 +69,20 @@ func LoadChanges() (*ChangeSet, error) {
 	var loader ChangeLoader
 
 	// Priority 1: diff file
-	if diffFile != nil && *diffFile != "" {
-		log.Printf("Using diff file: %s", *diffFile)
-		loader = &DiffFileLoader{filePath: *diffFile}
-	} else if *prNumber > 0 {
+	if opts.DiffFile != "" {
+		log.Printf("Using diff file: %s", opts.DiffFile)
+		loader = &DiffFileLoader{filePath: opts.DiffFile}
+	} else if opts.PRNumber > 0 {
 		// Priority 2: PR mode
-		loader = selectGitLoader()
+		loader = selectGitLoader(opts)
 	} else {
 		// Priority 3: local git mode (requires git repo)
 		if _, err := git.PlainOpen("."); err == nil {
 			log.Println("Using local git diff mode")
-			loader = &LocalGitLoader{}
+			loader = &LocalGitLoader{
+				remoteName: opts.RemoteName,
+				baseBranch: opts.BaseBranch,
+			}
 		} else {
 			return nil, fmt.Errorf("not in a git repository. Please run from a git repository, use --diff to provide a diff file, or use --no-filter to analyze all files")
 		}
@@ -110,19 +108,22 @@ func LoadChanges() (*ChangeSet, error) {
 }
 
 // selectGitLoader selects the appropriate git-based loader
-func selectGitLoader() ChangeLoader {
-	if *prNumber > 0 {
-		setupPRWorktree(*prNumber)
+func selectGitLoader(opts LoaderOptions) ChangeLoader {
+	if opts.PRNumber > 0 {
+		setupPRWorktree(opts.PRNumber, opts.RemoteName, opts.BaseBranch)
 
-		log.Printf("Using GitHub API for PR #%d changed lines", *prNumber)
-		return &GitHubLoader{}
+		log.Printf("Using GitHub API for PR #%d changed lines", opts.PRNumber)
+		return &GitHubLoader{prNumber: opts.PRNumber}
 	}
 
-	return &LocalGitLoader{}
+	return &LocalGitLoader{
+		remoteName: opts.RemoteName,
+		baseBranch: opts.BaseBranch,
+	}
 }
 
-func setupPRWorktree(prNum int) {
-	worktreeLoader := NewWorktreeLoader(prNum)
+func setupPRWorktree(prNum int, remoteName, baseBranch string) {
+	worktreeLoader := NewWorktreeLoader(prNum, remoteName, baseBranch)
 
 	// Setup worktree
 	worktreePath, err := worktreeLoader.Setup()

@@ -21,22 +21,24 @@ type WorktreeLoader struct {
 }
 
 // NewWorktreeLoader creates a new WorktreeLoader
-func NewWorktreeLoader(prNumber int) *WorktreeLoader {
+func NewWorktreeLoader(prNumber int, remoteName, baseBranch string) *WorktreeLoader {
 	owner, repo := getRepoInfo()
 	return &WorktreeLoader{
-		prNumber: prNumber,
-		owner:    owner,
-		repo:     repo,
+		prNumber:   prNumber,
+		remoteName: remoteName,
+		baseBranch: baseBranch,
+		owner:      owner,
+		repo:       repo,
 	}
 }
 
 // detectRemoteForPR detects the appropriate remote for fetching PR
 // Priority: user-specified remote flag > upstream > origin
 func (l *WorktreeLoader) detectRemoteForPR() (string, error) {
-	// Check if user specified remote via flag
-	if remoteName != nil && *remoteName != "" {
-		log.Printf("Using user-specified remote: %s", *remoteName)
-		return *remoteName, nil
+	// Check if user specified remote
+	if l.remoteName != "" {
+		log.Printf("Using user-specified remote: %s", l.remoteName)
+		return l.remoteName, nil
 	}
 
 	// Auto-detect: prefer upstream, fallback to origin
@@ -82,16 +84,20 @@ func (l *WorktreeLoader) Setup() (string, error) {
 		return "", fmt.Errorf("not in a git repository. Please run this tool from the terraform-provider-azurerm directory")
 	}
 
-	// 1. Detect which remote to use
-	remote, err := l.detectRemoteForPR()
-	if err != nil {
-		return "", fmt.Errorf("failed to detect remote: %w. Please ensure you're in the terraform-provider-azurerm repository with correct remote configured", err)
+	// 1. Detect which remote to use (if not specified)
+	if l.remoteName == "" {
+		remote, err := l.detectRemoteForPR()
+		if err != nil {
+			return "", fmt.Errorf("failed to detect remote: %w. Please ensure you're in the terraform-provider-azurerm repository with correct remote configured", err)
+		}
+		l.remoteName = remote
 	}
-	l.remoteName = remote
 
-	// 2. Get PR details to find the base branch
-	if err := l.fetchPRDetails(); err != nil {
-		return "", fmt.Errorf("failed to fetch PR details: %w", err)
+	// 2. Get PR details to find the base branch (if not specified)
+	if l.baseBranch == "" {
+		if err := l.fetchPRDetails(); err != nil {
+			return "", fmt.Errorf("failed to fetch PR details: %w", err)
+		}
 	}
 
 	// 3. Fetch the PR ref
@@ -151,6 +157,8 @@ func (l *WorktreeLoader) Cleanup() error {
 		return nil
 	}
 
+	log.Printf("Cleaning up worktree at %s...", l.worktreePath)
+
 	// First try to remove the worktree using git
 	cmd := exec.Command("git", "worktree", "remove", l.worktreePath, "--force")
 	output, err := cmd.CombinedOutput()
@@ -169,5 +177,6 @@ func (l *WorktreeLoader) Cleanup() error {
 		}
 	}
 
+	log.Println("✓ Worktree cleanup complete")
 	return nil
 }

@@ -34,7 +34,9 @@ type PRInfo struct {
 }
 
 // GitHubLoader loads changes from GitHub API
-type GitHubLoader struct{}
+type GitHubLoader struct {
+	prNumber int
+}
 
 // Load loads changes from GitHub API and returns a ChangeSet
 func (l *GitHubLoader) Load() (*ChangeSet, error) {
@@ -43,7 +45,7 @@ func (l *GitHubLoader) Load() (*ChangeSet, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	owner, name := getRepoInfo()
 
-	prNum := *prNumber
+	prNum := l.prNumber
 
 	log.Printf("Fetching PR #%d changes from GitHub API (%s/%s)...", prNum, owner, name)
 

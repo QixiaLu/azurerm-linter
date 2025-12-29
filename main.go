@@ -23,7 +23,7 @@ func run() int {
 
 	// Handle help flag
 	if cfg.ShowHelp {
-		cmd.PrintHelp()
+		cfg.PrintHelp()
 		return 0
 	}
 

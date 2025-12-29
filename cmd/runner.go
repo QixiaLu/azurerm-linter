@@ -41,7 +41,15 @@ func NewRunner(cfg *Config) *Runner {
 func (r *Runner) Run(ctx context.Context) ExitCode {
 	defer loader.CleanupWorktree()
 
-	_, err := loader.LoadChanges()
+	loaderOpts := loader.LoaderOptions{
+		NoFilter:   r.Config.NoFilter,
+		PRNumber:   r.Config.PRNumber,
+		RemoteName: r.Config.RemoteName,
+		BaseBranch: r.Config.BaseBranch,
+		DiffFile:   r.Config.DiffFile,
+	}
+
+	_, err := loader.LoadChanges(loaderOpts)
 	if err != nil {
 		log.Printf("Warning: failed to load changed lines filter: %v", err)
 	}
