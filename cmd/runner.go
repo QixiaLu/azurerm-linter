@@ -3,9 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
-	"os"
 
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/passes"
@@ -24,16 +22,12 @@ const (
 
 type Runner struct {
 	Config *Config
-	Stdout io.Writer
-	Stderr io.Writer
 }
 
 // NewRunner creates a new Runner with the given config
 func NewRunner(cfg *Config) *Runner {
 	return &Runner{
 		Config: cfg,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
 	}
 }
 
@@ -75,7 +69,7 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 
 	// Validate we have patterns to analyze
 	if len(patterns) == 0 {
-		fmt.Fprintf(r.Stderr, "Error: no packages to analyze\n")
+		log.Println("Error: no packages to analyze")
 		return ExitError
 	}
 
@@ -85,7 +79,7 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 	}
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {
-		fmt.Fprintf(r.Stderr, "Error: failed to load packages: %v\n", err)
+		log.Printf("Error: failed to load packages: %v", err)
 		return ExitError
 	}
 
@@ -93,7 +87,7 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 	var hasLoadErrors bool
 	packages.Visit(pkgs, nil, func(pkg *packages.Package) {
 		for _, err := range pkg.Errors {
-			fmt.Fprintf(r.Stderr, "%v\n", err)
+			log.Println(err)
 			hasLoadErrors = true
 		}
 	})
@@ -104,7 +98,7 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 	log.Printf("Running analysis...")
 	graph, err := checker.Analyze(passes.AllChecks, pkgs, nil)
 	if err != nil {
-		fmt.Fprintf(r.Stderr, "Error: analysis failed: %v\n", err)
+		log.Printf("Error: analysis failed: %v", err)
 		return ExitError
 	}
 
@@ -125,7 +119,7 @@ func (r *Runner) reportDiagnostics(graph *checker.Graph) bool {
 
 	for act := range graph.All() {
 		if act.Err != nil {
-			fmt.Fprintf(r.Stderr, "%s: %v\n", act.Package.PkgPath, act.Err)
+			log.Printf("%s: %v", act.Package.PkgPath, act.Err)
 			foundIssues = true
 			continue
 		}
@@ -133,12 +127,12 @@ func (r *Runner) reportDiagnostics(graph *checker.Graph) bool {
 		for _, diag := range act.Diagnostics {
 			foundIssues = true
 			issueCount++
-			fmt.Fprintf(r.Stdout, "%s: %s\n", act.Package.Fset.Position(diag.Pos), diag.Message)
+			fmt.Printf("%s: %s\n", act.Package.Fset.Position(diag.Pos), diag.Message)
 		}
 	}
 
 	if foundIssues {
-		fmt.Fprintf(r.Stderr, "\n Found %d issue(s)\n", issueCount)
+		log.Printf("Found %d issue(s)", issueCount)
 	}
 
 	return foundIssues

@@ -115,7 +115,10 @@ func (l *WorktreeLoader) Setup() (string, error) {
 
 	// Clean up any existing worktree with the same name
 	if _, err := os.Stat(l.worktreePath); err == nil {
-		l.Cleanup()
+		err = l.Cleanup()
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// 5. Create the worktree

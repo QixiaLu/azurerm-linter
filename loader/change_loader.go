@@ -68,15 +68,13 @@ func LoadChanges(opts LoaderOptions) (*ChangeSet, error) {
 
 	var loader ChangeLoader
 
-	// Priority 1: diff file
-	if opts.DiffFile != "" {
+	switch {
+	case opts.DiffFile != "":
 		log.Printf("Using diff file: %s", opts.DiffFile)
 		loader = &DiffFileLoader{filePath: opts.DiffFile}
-	} else if opts.PRNumber > 0 {
-		// Priority 2: PR mode
+	case opts.PRNumber > 0:
 		loader = selectGitLoader(opts)
-	} else {
-		// Priority 3: local git mode (requires git repo)
+	default:
 		if _, err := git.PlainOpen("."); err == nil {
 			log.Println("Using local git diff mode")
 			loader = &LocalGitLoader{

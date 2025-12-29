@@ -66,9 +66,9 @@ Usage:
   azurerm-linter [flags] <package patterns>
 
 Examples:
-  azurerm-linter ./internal/services/compute
+  azurerm-linter ./internal/services/compute/...
   azurerm-linter --pr=12345
-  azurerm-linter --diff=changes.txt ./...
+  azurerm-linter --diff=changes.txt
   azurerm-linter --no-filter ./internal/services/...
 
 Flags:`)
@@ -77,7 +77,7 @@ Flags:`)
 
 // PrintChecks prints all available checks
 func PrintChecks() {
-	fmt.Println("Available checks:\n")
+	fmt.Println("Available checks:")
 	for _, analyzer := range passes.AllChecks {
 		title := strings.Split(analyzer.Doc, "\n")[0]
 		fmt.Printf("  %-10s  %s\n", analyzer.Name, title)
