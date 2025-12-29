@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/passes"
@@ -120,7 +119,7 @@ func (r *Runner) reportDiagnostics(graph *checker.Graph) bool {
 
 	for act := range graph.All() {
 		if act.Err != nil {
-			fmt.Fprintf(os.Stderr, "%s: %v\n", act.Package.PkgPath, act.Err)
+			fmt.Printf("%s: %v\n", act.Package.PkgPath, act.Err)
 			foundIssues = true
 			continue
 		}
@@ -133,7 +132,7 @@ func (r *Runner) reportDiagnostics(graph *checker.Graph) bool {
 	}
 
 	if foundIssues {
-		fmt.Fprintf(os.Stderr, "Found %d issue(s)\n", issueCount)
+		fmt.Printf("Found %d issue(s)\n", issueCount)
 	}
 
 	return foundIssues
