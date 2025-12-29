@@ -42,75 +42,46 @@ For additional information about each check, see the documentation in passes's d
 
 ## Installation
 
-### Prerequisites
-
-- Go 1.24 or later
-- Git
-
-### Build from Source
-
 ```bash
 git clone https://github.com/QixiaLu/azurerm-linter.git
 cd azurerm-linter
-go build -o <path/to/terraform-provider-azurerm>
+go build
 ```
-
-This will create an `azurerm-linter.exe` executable (on Windows) or `azurerm-linter` (on Linux/macOS).
 
 ## Usage
 
-### Basic Usage
-
-Run linter against all packages:
-(For better performance, please narrow down to a single service)
+### Quick Start
 
 ```bash
-cd ./path/to/terraform-provider-azurerm
-./azurerm-linter -use-git-repo=false ./internal/services/...
+# Run in terraform-provider-azurerm directory
+cd /path/to/terraform-provider-azurerm
+
+# Check your local branch changes (auto-detect changed lines and packages)
+azurerm-linter
+
+# Check specific PR (fetch PR branch and create worktree in tmp)
+azurerm-linter --pr=12345
+
+# Check from diff file
+azurerm-linter --diff=changes.txt
+
+# Check specific packages
+azurerm-linter ./internal/services/compute/...
+
+# Check all lines in all packages (no filtering)
+azurerm-linter --no-filter ./internal/services/...
 ```
 
-### Check Only Changed Lines
-
-The linter can analyze only the lines that have been modified.
-
-#### Check Local Git Changes
-
-Check only the lines changed in your current branch compared to the target branch:
+### Common Options
 
 ```bash
-# Auto-detect remote and branch (defaults to upstream/main or origin/main)
-./azurerm-linter ./internal/services/policy/...
-
-# Specify remote explicitly
-./azurerm-linter -remote=origin ./internal/services/policy/...
-
-# Specify both remote and branch
-./azurerm-linter -remote=upstream -branch=main ./internal/services/policy/...
-
-# Specify only the branch (remote will be auto-detected)
-./azurerm-linter -branch=main ./internal/services/policy/...
+--pr=<number>      # Check GitHub PR
+--remote=<name>    # Specify git remote (origin/upstream)
+--base=<branch>    # Specify base branch
+--diff=<file>      # Read diff from file
+--no-filter        # Analyze all lines (not just changes)
+--list             # List all available checks
+--help             # Show help
 ```
 
-#### Check GitHub Pull Request
-
-Check only the lines changed in a specific pull request:
-
-```bash
-# Use GitHub PR number
-./azurerm-linter -pr-number=1234 -use-github-api=true ./internal/services/policy/...
-
-# Specify repository if not using default
-./azurerm-linter -pr-number=1234 ./internal/services/policy/...
-```
-
-#### Check from Diff File
-
-Check lines from a git diff file:
-
-```bash
-# Generate and use a diff file
-git diff main > changes.patch
-./azurerm-linter -diff-file=changes.patch ./internal/services/policy/...
-```
-
-**Note**: When using any of the changed-line detection modes (`-remote`, `-pr`, `-diff-file`), the linter will only report issues on lines that were modified, making it easier to focus on reviewing new changes without noise from existing code.
+**Note**: By default, only changed lines are analyzed. Use `--no-filter` to check everything.
