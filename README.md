@@ -45,7 +45,7 @@ For additional information about each check, see the documentation in passes's d
 ```bash
 git clone https://github.com/QixiaLu/azurerm-linter.git
 cd azurerm-linter
-go build
+go build -o <path/to/terraform-provider-azurerm>
 ```
 
 ## Usage
@@ -57,19 +57,19 @@ go build
 cd /path/to/terraform-provider-azurerm
 
 # Check your local branch changes (auto-detect changed lines and packages)
-azurerm-linter
+./azurerm-linter.exe
 
 # Check specific PR (fetch PR branch and create worktree in tmp)
-azurerm-linter --pr=12345
+./azurerm-linter.exe --pr=12345
 
 # Check from diff file
-azurerm-linter --diff=changes.txt
+./azurerm-linter.exe --diff=changes.txt
 
 # Check specific packages
-azurerm-linter ./internal/services/compute/...
+./azurerm-linter.exe ./internal/services/compute/...
 
 # Check all lines in all packages (no filtering)
-azurerm-linter --no-filter ./internal/services/...
+./azurerm-linter.exe --no-filter ./internal/services/...
 ```
 
 ### Common Options
