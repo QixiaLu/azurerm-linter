@@ -86,3 +86,9 @@ cd /path/to/terraform-provider-azurerm
 ```
 
 **Note**: By default, only changed lines are analyzed. Use `--no-filter` to check everything.
+
+## Limitations
+
+Schema-related checks (e.g. AZNR002, AZSD001, AZSD002) only analyze schemas defined as direct `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals. Schemas nested inside other structures or from other packages (except commonschema) are excluded due to:
+- Runtime modifications via feature flags
+- Environment-dependent behavior
