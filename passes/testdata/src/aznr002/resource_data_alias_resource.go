@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"mockpkg/pluginsdk"
-	"mockpkg/sdk"
+	"testdata/src/mockpkg/pluginsdk"
+	"testdata/src/mockpkg/sdk"
 )
 
 // Test Case 7: Using ResourceData alias (rd := metadata.ResourceData)

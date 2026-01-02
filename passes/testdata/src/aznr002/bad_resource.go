@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"mockpkg/pluginsdk"
-	"mockpkg/sdk"
+	"testdata/src/mockpkg/pluginsdk"
+	"testdata/src/mockpkg/sdk"
 )
 
 // Test Case 2: Missing HasChange for some updatable properties - should report error

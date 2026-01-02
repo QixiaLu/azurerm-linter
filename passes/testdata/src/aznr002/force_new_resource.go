@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"mockpkg/pluginsdk"
-	"mockpkg/sdk"
+	"testdata/src/mockpkg/pluginsdk"
+	"testdata/src/mockpkg/sdk"
 )
 
 // Test Case 6: Resource with ForceNew properties (should not be reported)

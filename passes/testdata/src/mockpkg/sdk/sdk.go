@@ -3,7 +3,7 @@ package sdk
 import (
 	"context"
 
-	"mockpkg/pluginsdk"
+	"testdata/src/mockpkg/pluginsdk"
 )
 
 // Mock types for azurerm SDK

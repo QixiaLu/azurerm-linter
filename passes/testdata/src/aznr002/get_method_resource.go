@@ -3,8 +3,8 @@ package aznr002
 import (
 	"context"
 
-	"mockpkg/pluginsdk"
-	"mockpkg/sdk"
+	"testdata/src/mockpkg/pluginsdk"
+	"testdata/src/mockpkg/sdk"
 )
 
 // Test Case 3: Using Get() method to retrieve property values

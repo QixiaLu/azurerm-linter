@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"mockpkg/pluginsdk"
-	"mockpkg/sdk"
+	"testdata/src/mockpkg/pluginsdk"
+	"testdata/src/mockpkg/sdk"
 )
 
 // Test Case 4: Using model field access (Pattern 4)

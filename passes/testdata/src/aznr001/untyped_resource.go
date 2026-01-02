@@ -1,7 +1,7 @@
 package aznr001
 
 import (
-	"mockpkg/pluginsdk"
+	"testdata/src/mockpkg/pluginsdk"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )

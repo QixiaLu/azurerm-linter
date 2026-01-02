@@ -6,8 +6,6 @@ require (
 	github.com/hashicorp/go-azure-helpers/lang/pointer v0.0.0
 	github.com/hashicorp/go-azure-sdk/resource-manager/compute/2024-03-01/virtualmachines v0.0.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.34.0
-	mockpkg/pluginsdk v0.0.0
-	mockpkg/sdk v0.0.0
 )
 
 require (
@@ -46,6 +44,4 @@ require (
 replace (
 	github.com/hashicorp/go-azure-helpers/lang/pointer => ./src/github.com/hashicorp/go-azure-helpers/lang/pointer
 	github.com/hashicorp/go-azure-sdk/resource-manager/compute/2024-03-01/virtualmachines => ./src/github.com/hashicorp/go-azure-sdk/resource-manager/compute/2024-03-01/virtualmachines
-	mockpkg/pluginsdk => ./src/mockpkg/pluginsdk
-	mockpkg/sdk => ./src/mockpkg/sdk
 )
