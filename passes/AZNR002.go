@@ -12,7 +12,6 @@ import (
 	"github.com/qixialu/azurerm-linter/loader"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
@@ -66,7 +65,7 @@ var AZNR002Analyzer = &analysis.Analyzer{
 	Name:     aznr002Name,
 	Doc:      AZNR002Doc,
 	Run:      runAZNR002,
-	Requires: []*analysis.Analyzer{inspect.Analyzer, schema.CommonAnalyzer, buildssa.Analyzer},
+	Requires: []*analysis.Analyzer{inspect.Analyzer, schema.CommonAnalyzer},
 }
 
 func runAZNR002(pass *analysis.Pass) (interface{}, error) {
