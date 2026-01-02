@@ -17,12 +17,14 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-const AZNR002Doc = `check that updatable properties are handled in Update function
+const AZNR002Doc = `check that top-level updatable properties are handled in Update function
 
 The AZNR002 analyzer checks that all updatable properties (not marked as ForceNew)
 are properly handled in the Update function for typed resources.
 
 If git filter enabled, this rule only applies on newly created file.
+
+This analyzer will be skipped if a helper function is utilized to handle the update.
 
 For typed resources, this means checking for metadata.ResourceData.HasChange("property_name").
 
@@ -358,8 +360,6 @@ func isResourceDataMethod(sel *ast.SelectorExpr, typesInfo *types.Info) bool {
 // e.g. "automanage_configuration_resource.go": expandConfigurationProfile(model) - should skip
 // counter-example "spring_cloud_gateway_resource.go": if HasChange { expandGatewayResponseCacheProperties(model) } - should NOT skip
 func detectModelPassedToHelper(body *ast.BlockStmt, modelTypeName string, typesInfo *types.Info) bool {
-	found := false
-
 	// Only check top-level statements in the function body
 	for _, stmt := range body.List {
 		// Skip if statement, for statement, switch statement - these are conditional
@@ -368,6 +368,7 @@ func detectModelPassedToHelper(body *ast.BlockStmt, modelTypeName string, typesI
 			continue
 		}
 
+		found := false
 		// Check assignments and expression statements at top level
 		ast.Inspect(stmt, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
@@ -379,18 +380,15 @@ func detectModelPassedToHelper(body *ast.BlockStmt, modelTypeName string, typesI
 			for _, arg := range call.Args {
 				if ident, ok := arg.(*ast.Ident); ok {
 					// Use TypesInfo to check if this variable is of model type
-					if typesInfo != nil {
-						if typ := typesInfo.TypeOf(ident); typ != nil {
-							// Remove pointer if present
-							if ptr, ok := typ.(*types.Pointer); ok {
-								typ = ptr.Elem()
-							}
-							// Check if it's a named type matching our model
-							if named, ok := typ.(*types.Named); ok {
-								if obj := named.Obj(); obj != nil && obj.Name() == modelTypeName {
-									found = true
-									return false
-								}
+					if typ := typesInfo.TypeOf(ident); typ != nil {
+						if ptr, ok := typ.(*types.Pointer); ok {
+							typ = ptr.Elem()
+						}
+						// Check if it's a named type matching our model
+						if named, ok := typ.(*types.Named); ok {
+							if obj := named.Obj(); obj != nil && obj.Name() == modelTypeName {
+								found = true
+								return false
 							}
 						}
 					}
@@ -401,11 +399,11 @@ func detectModelPassedToHelper(body *ast.BlockStmt, modelTypeName string, typesI
 		})
 
 		if found {
-			break
+			return true
 		}
 	}
 
-	return found
+	return false
 }
 
 // reportMissingProperties reports properties that are updatable but not handled
@@ -422,8 +420,8 @@ func reportMissingProperties(pass *analysis.Pass, resource *helper.TypedResource
 	if len(missingProps) == 0 || len(handledProps) == 0 {
 		if len(handledProps) == 0 {
 			pos := pass.Fset.Position(resource.UpdateFunc.Pos())
-			log.Printf("%s Skipping resource %q at %s:%d - the update implementation is delegated to a helper function",
-				aznr002Name, resource.ResourceTypeName, pos.Filename, pos.Line)
+			log.Printf("%s:%d: %s: Skipping resource %q - the update implementation is delegated to a helper function",
+				pos.Filename, pos.Line, aznr002Name, resource.ResourceTypeName)
 		}
 		return
 	}
@@ -440,7 +438,7 @@ func reportMissingProperties(pass *analysis.Pass, resource *helper.TypedResource
 	// Report at the Update function
 	if resource.UpdateFunc != nil {
 		pass.Reportf(resource.UpdateFunc.Pos(),
-			"%s: resource has updatable properties not handled in Update function: `%s`. If they are non-updatable, mark them as %s in Arguments() schema",
+			"%s: resource has updatable properties not handled in Update function: `%s`. If they are non-updatable, mark them as %s in Arguments() schema\n",
 			aznr002Name,
 			helper.IssueLine(strings.Join(missingProps, ", ")),
 			helper.FixedCode("ForceNew: true"))
