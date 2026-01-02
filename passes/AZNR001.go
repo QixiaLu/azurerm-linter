@@ -20,13 +20,12 @@ The AZNR001 analyzer reports cases of schemas where fields are not ordered corre
 When git filter is applied, it only works on newly created files.
 
 Schema fields should be ordered as follows:
-1. Any fields that make up the resource's ID, with the last user specified segment 
-   (usually the resource's name) first. (e.g. 'name' then 'resource_group_name', 
-   or 'name' then 'parent_resource_id')
-2. The 'location' field.
-3. Required fields, sorted alphabetically.
-4. Optional fields, sorted alphabetically.
-5. Computed fields, sorted alphabetically.`
+Required order:
+1. Special ID fields (name, resource_group_name in order)
+2. Location field
+3. Required fields (sorted alphabetically for nested schemas)
+4. Optional fields (sorted alphabetically)
+5. Computed fields (sorted alphabetically)`
 
 const aznr001Name = "AZNR001"
 
