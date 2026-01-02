@@ -97,7 +97,7 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 		updatableProps := extractUpdatableProperties(pass, resource, commonSchemaInfo)
 
 		// Step 2: Find handled properties in Update()
-		handledProps := findHandledPropertiesInUpdate(pass, resource)
+		handledProps := findHandledPropertiesInUpdate(resource)
 
 		// Step 3: Report missing properties
 		reportMissingProperties(pass, resource, updatableProps, handledProps)
@@ -145,13 +145,11 @@ func findTypedResourcesWithUpdate(pass *analysis.Pass, inspector *inspector.Insp
 			}
 
 			var resourceTypeName string
-			switch v := valueSpec.Values[0].(type) {
-			case *ast.CompositeLit:
-				if ident, ok := v.Type.(*ast.Ident); ok {
+			if compLit, ok := valueSpec.Values[0].(*ast.CompositeLit); ok {
+				if ident, ok := compLit.Type.(*ast.Ident); ok {
 					resourceTypeName = ident.Name
 				}
 			}
-
 			if resourceTypeName == "" {
 				continue
 			}
@@ -226,7 +224,7 @@ func extractUpdatableProperties(pass *analysis.Pass, resource *helper.TypedResou
 }
 
 // findHandledPropertiesInUpdate finds all properties handled in Update function
-func findHandledPropertiesInUpdate(pass *analysis.Pass, resource *helper.TypedResourceInfo) map[string]bool {
+func findHandledPropertiesInUpdate(resource *helper.TypedResourceInfo) map[string]bool {
 	handledProps := make(map[string]bool)
 
 	if resource.UpdateFunc == nil || resource.UpdateFunc.Body == nil {
