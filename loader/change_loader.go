@@ -240,12 +240,12 @@ func (cs *ChangeSet) IsFileChanged(filename string) bool {
 // IsNewFile checks if a file is newly added
 func (cs *ChangeSet) IsNewFile(filename string) bool {
 	if len(cs.newFiles) == 0 {
-		return true
+		return false
 	}
 
 	relPath := normalizeFilePath(filename)
 	if !isServiceFile(relPath) {
-		return true
+		return false
 	}
 
 	return cs.newFiles[relPath]
