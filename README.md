@@ -42,6 +42,17 @@ For additional information about each check, see the documentation in passes's d
 
 ## Installation
 
+### Prerequisites
+
+This tool must be compiled with the **same Go version** required by `terraform-provider-azurerm`. Check the Go version in `terraform-provider-azurerm/go.mod`.
+
+**Windows users:** Enable long paths to avoid "Filename too long" errors when using `--pr`:
+```bash
+git config --global core.longpaths true
+```
+
+### Build
+
 ```bash
 git clone https://github.com/QixiaLu/azurerm-linter.git
 cd azurerm-linter
