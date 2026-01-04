@@ -96,3 +96,58 @@ cd /path/to/terraform-provider-azurerm
 ```
 
 **Note**: By default, only changed lines are analyzed. Use `--no-filter` to check everything.
+
+### Output
+
+The tool prints results directly to **standard output (console/terminal)**:
+
+**If issues are found:**
+- Each issue is printed with file path, line number, and check ID
+- Summary: `Found X issue(s)`
+- Exit code: 1
+
+**If no issues are found:**
+- Message: `✓ Analysis completed successfully with no issues found`
+- Exit code: 0
+
+**If errors occur (e.g., build failures, missing dependencies):**
+- Error message with details
+- Exit code: 2
+
+#### Example output (with issues)
+
+```bash
+./Azurerm-linter/azurerm-linter.exe
+2026/01/05 10:39:01 Using local git diff mode
+2026/01/05 10:39:01 Current branch: lint_test
+2026/01/05 10:39:02 Merge-base: 0aac888
+2026/01/05 10:39:03 ✓ Found 9 changed files with 1553 changed lines
+2026/01/05 10:39:03 Changed lines filter: tracking 9 files with 1553 changed lines
+2026/01/05 10:39:03 Auto-detected 1 changed packages:
+2026/01/05 10:39:03   ./internal/services/policy
+2026/01/05 10:39:03 Loading packages...
+2026/01/05 10:40:36 Running analysis...
+C:\Users\**\Repos\terraform-provider-azurerm\internal\services\policy\management_group_policy_definition_resource.go:55:19: AZBP001: string argument "display_name" must have ValidateFunc
+
+C:\Users\**\Repos\terraform-provider-azurerm\internal\services\policy\management_group_policy_definition_resource.go:94:18: AZBP002: field "policy_rule" is Optional+Computed but missing required comment. Add '// NOTE: O+C - <explanation>' between Optional and Computed
+
+C:\Users\**\Repos\terraform-provider-azurerm\internal\services\policy\management_group_policy_definition_resource.go:162:19: AZBP003: use `pointer.ToEnum` to convert Enum type instead of explicitly type conversion.
+
+C:\Users\**\Repos\terraform-provider-azurerm\internal\services\policy\management_group_policy_definition_resource.go:309:24: AZBP003: use `pointer.ToEnum` to convert Enum type instead of explicitly type conversion.
+
+C:\Users\**\Repos\terraform-provider-azurerm\internal\services\policy\policy_definition_resource.go:126:17: AZBP003: use `pointer.ToEnum` to convert Enum type instead of explicitly type conversion.
+
+C:\Users\**\Repos\terraform-provider-azurerm\internal\services\policy\policy_definition_resource.go:567:19: AZBP003: use `pointer.ToEnum` to convert Enum type instead of explicitly type conversion.
+
+C:\Users\**\Repos\terraform-provider-azurerm\internal\services\policy\management_group_policy_definition_resource.go:233:6: AZBP004: can simplify with `pointer.From()` since variable is initialized to zero value
+
+C:\Users\**\Repos\terraform-provider-azurerm\internal\services\policy\management_group_policy_definition_resource.go:408:14: AZRE001: fixed error strings should use errors.New() instead of fmt.Errorf()
+
+C:\Users\**\Repos\terraform-provider-azurerm\internal\services\policy\management_group_policy_definition_resource.go:40:9: AZNR001: schema fields are not in the correct order
+Expected order:
+  name, management_group_id, display_name, mode, policy_type, description, metadata, parameters, policy_rule
+Actual order:
+  name, management_group_id, display_name, mode, policy_type, metadata, description, policy_rule, parameters
+
+2026/01/05 10:40:40 Found 9 issue(s)
+```
