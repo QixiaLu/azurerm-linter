@@ -16,6 +16,7 @@ type TypedResourceInfo struct {
 	CreateFunc           *ast.FuncDecl
 	ReadFunc             *ast.FuncDecl
 	UpdateFunc           *ast.FuncDecl
+	UpdateFuncBody       *ast.BlockStmt
 	DeleteFunc           *ast.FuncDecl
 	TypesInfo            *types.Info
 	ModelFieldToTFSchema map[string]string // model struct field name -> tfschema tag name
@@ -86,6 +87,7 @@ func NewTypedResourceInfo(resourceTypeName string, file *ast.File, info *types.I
 				result.ReadFunc = d
 			case "Update":
 				result.UpdateFunc = d
+				result.UpdateFuncBody = extractUpdateFuncBody(d)
 			case "Delete":
 				result.DeleteFunc = d
 			}
@@ -96,15 +98,15 @@ func NewTypedResourceInfo(resourceTypeName string, file *ast.File, info *types.I
 	if result.ModelName != "" {
 		if modelStruct, ok := structs[result.ModelName]; ok {
 			result.ModelStruct = modelStruct
-			result.parseModelStructInternal(modelStruct)
+			result.parseModelStruct(modelStruct)
 		}
 	}
 
 	return result
 }
 
-// parseModelStructInternal is the internal implementation for parsing model struct
-func (info *TypedResourceInfo) parseModelStructInternal(modelStruct *ast.StructType) {
+// parsing model struct
+func (info *TypedResourceInfo) parseModelStruct(modelStruct *ast.StructType) {
 	for _, field := range modelStruct.Fields.List {
 		if field.Tag == nil {
 			continue
@@ -153,4 +155,64 @@ func IsResourceWithUpdateInterface(expr ast.Expr) bool {
 	}
 
 	return selExpr.Sel.Name == "ResourceWithUpdate"
+}
+
+// extractUpdateFuncBody extracts the function body from sdk.ResourceFunc{ Func: func(...) {...} }
+func extractUpdateFuncBody(updateFunc *ast.FuncDecl) *ast.BlockStmt {
+	if updateFunc == nil || updateFunc.Body == nil {
+		return nil
+	}
+
+	var updateFuncBody *ast.BlockStmt
+	ast.Inspect(updateFunc.Body, func(n ast.Node) bool {
+		ret, ok := n.(*ast.ReturnStmt)
+		if !ok || len(ret.Results) == 0 {
+			return true
+		}
+
+		// Look for sdk.ResourceFunc{ Func: func(...) { ... } }
+		compLit, ok := ret.Results[0].(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+
+		for _, elt := range compLit.Elts {
+			kv, ok := elt.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+
+			if ident, ok := kv.Key.(*ast.Ident); ok && ident.Name == "Func" {
+				if funcLit, ok := kv.Value.(*ast.FuncLit); ok {
+					updateFuncBody = funcLit.Body
+					return false
+				}
+			}
+		}
+
+		return true
+	})
+
+	return updateFuncBody
+}
+
+// Get schema map returned from func directly
+func GetSchemaMapReturnedFromFunc(funcDecl *ast.FuncDecl) *ast.CompositeLit {
+	var schemaMap *ast.CompositeLit
+	ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
+		ret, ok := n.(*ast.ReturnStmt)
+		if !ok || len(ret.Results) == 0 {
+			return true
+		}
+
+		if compLit, ok := ret.Results[0].(*ast.CompositeLit); ok {
+			if IsSchemaMap(compLit) {
+				schemaMap = compLit
+				return false
+			}
+		}
+
+		return true
+	})
+	return schemaMap
 }

@@ -17,6 +17,8 @@ For additional information about each check, see the documentation in passes's d
 
 ### Azure New Resource Checks
 
+**Note**: When git filter is on, following analyzers only run on newly created resources/data sources
+
 | Check | Description |
 |-------|-------------|
 | AZNR001 | check for Schema field ordering |
@@ -28,7 +30,7 @@ For additional information about each check, see the documentation in passes's d
 |-------|-------------|
 | AZRN001 | check for percentage properties use `_percentage` suffix instead of `_in_percent` |
 
-### Azure Resource Error Checks
+### Azure Reference Error Checks
 
 | Check | Description |
 |-------|-------------|
@@ -98,12 +100,6 @@ cd /path/to/terraform-provider-azurerm
 
 **Note**: By default, only changed lines are analyzed. Use `--no-filter` to check everything.
 
-## Limitations
-
-Schema-related checks (e.g. AZNR002, AZSD001, AZSD002) only analyze schemas defined as direct `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals. Schemas nested inside other structures or from other packages (except commonschema) are excluded due to:
-- Runtime modifications via feature flags
-- Environment-dependent behavior
-
 ### Output
 
 The tool prints results directly to **standard output (console/terminal)**:
@@ -158,3 +154,7 @@ Actual order:
 
 2026/01/05 10:40:40 Found 9 issue(s)
 ```
+
+## Limitations
+
+Schema-related checks (e.g., AZNR002, AZSD001, AZSD002) only analyze inline schemas defined as direct `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals returned from functions. Schemas stored in variables, nested blocks, or imported from other packages (except `commonschema`) are excluded to reduce false positives caused by runtime modifications (e.g., conditional properties based on feature flags) that cannot be determined through static AST analysis.

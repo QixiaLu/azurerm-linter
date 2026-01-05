@@ -4,12 +4,13 @@ import (
 	"go/ast"
 	"go/types"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/astutils"
 	"github.com/qixialu/azurerm-linter/helper"
-	"github.com/qixialu/azurerm-linter/passes/schema"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/passes/schema"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -26,6 +27,9 @@ If git filter enabled, this rule only applies on newly created file.
 This analyzer will be skipped if a helper function is utilized to handle the update.
 
 For typed resources, this means checking for metadata.ResourceData.HasChange("property_name").
+
+Note: This analyzer currently only supports Arguments() functions that directly return 
+map[string]*pluginsdk.Schema{}.
 
 Example violation:
   // In Arguments()
@@ -118,7 +122,7 @@ func findTypedResourcesWithUpdate(pass *analysis.Pass, inspector *inspector.Insp
 		}
 
 		fileName := pass.Fset.Position(genDecl.Pos()).Filename
-		if !loader.IsFileChanged(fileName) || !loader.IsNewFile(fileName) {
+		if !loader.IsNewFile(fileName) {
 			return
 		}
 
@@ -129,20 +133,11 @@ func findTypedResourcesWithUpdate(pass *analysis.Pass, inspector *inspector.Insp
 		// Check for interface implementation: var _ sdk.ResourceWithUpdate = TypeName{}
 		for _, spec := range genDecl.Specs {
 			valueSpec, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-
-			// Check if this is implementing sdk.ResourceWithUpdate
-			if !helper.IsResourceWithUpdateInterface(valueSpec.Type) {
+			if !ok || !helper.IsResourceWithUpdateInterface(valueSpec.Type) || len(valueSpec.Values) == 0 {
 				continue
 			}
 
 			// Get the resource type name
-			if len(valueSpec.Values) == 0 {
-				continue
-			}
-
 			var resourceTypeName string
 			if compLit, ok := valueSpec.Values[0].(*ast.CompositeLit); ok {
 				if ident, ok := compLit.Type.(*ast.Ident); ok {
@@ -155,15 +150,11 @@ func findTypedResourcesWithUpdate(pass *analysis.Pass, inspector *inspector.Insp
 
 			// Find the file containing this resource
 			for _, file := range pass.Files {
-				filePos := pass.Fset.Position(file.Pos()).Filename
-				if filePos != fileName {
+				if pass.Fset.Position(file.Pos()).Filename != fileName {
 					continue
 				}
 
-				// Create fully populated TypedResourceInfo - all parsing done inside constructor
 				resource := helper.NewTypedResourceInfo(resourceTypeName, file, pass.TypesInfo)
-
-				// Only add if it's complete (has all required components)
 				if resource.ModelStruct != nil && resource.ArgumentsFunc != nil && resource.UpdateFunc != nil {
 					resources = append(resources, resource)
 				}
@@ -175,6 +166,7 @@ func findTypedResourcesWithUpdate(pass *analysis.Pass, inspector *inspector.Insp
 }
 
 // extractUpdatableProperties extracts all updatable properties from the schema
+// only look into `return map[string]*pluginsdk.Schema`
 func extractUpdatableProperties(pass *analysis.Pass, resource *helper.TypedResourceInfo, commonSchemaInfo *schema.CommonSchemaInfo) map[string]string {
 	updatableProps := make(map[string]string)
 
@@ -184,38 +176,22 @@ func extractUpdatableProperties(pass *analysis.Pass, resource *helper.TypedResou
 	}
 
 	// Look for return statement with map[string]*pluginsdk.Schema
-	var schemaMap *ast.CompositeLit
-	ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
-		ret, ok := n.(*ast.ReturnStmt)
-		if !ok || len(ret.Results) == 0 {
-			return true
-		}
-
-		if compLit, ok := ret.Results[0].(*ast.CompositeLit); ok {
-			if helper.IsSchemaMap(compLit) {
-				schemaMap = compLit
-				return false
-			}
-		}
-
-		return true
-	})
-	if schemaMap == nil || astutils.ExprValue(schemaMap) == nil {
+	var schemaMap = helper.GetSchemaMapReturnedFromFunc(funcDecl)
+	if schemaMap == nil {
 		return updatableProps
 	}
 
 	fields := schema.ExtractFromCompositeLit(pass, schemaMap, commonSchemaInfo)
+
+	tfSchemaToModel := make(map[string]string, len(resource.ModelFieldToTFSchema))
+	for modelField, tfSchema := range resource.ModelFieldToTFSchema {
+		tfSchemaToModel[tfSchema] = modelField
+	}
+
 	// Filter updatable properties (not Computed, not ForceNew)
 	for _, field := range fields {
 		if field.SchemaInfo != nil && !field.SchemaInfo.Schema.Computed && !field.SchemaInfo.Schema.ForceNew {
-			var modelFieldName string
-			for fieldName, tfschema := range resource.ModelFieldToTFSchema {
-				if tfschema == field.Name {
-					modelFieldName = fieldName
-					break
-				}
-			}
-			updatableProps[field.Name] = modelFieldName
+			updatableProps[field.Name] = tfSchemaToModel[field.Name]
 		}
 	}
 
@@ -226,41 +202,7 @@ func extractUpdatableProperties(pass *analysis.Pass, resource *helper.TypedResou
 func findHandledPropertiesInUpdate(resource *helper.TypedResourceInfo) map[string]bool {
 	handledProps := make(map[string]bool)
 
-	if resource.UpdateFunc == nil || resource.UpdateFunc.Body == nil {
-		return handledProps
-	}
-
-	// Find the returned sdk.ResourceFunc
-	var updateFuncBody *ast.BlockStmt
-	ast.Inspect(resource.UpdateFunc.Body, func(n ast.Node) bool {
-		ret, ok := n.(*ast.ReturnStmt)
-		if !ok || len(ret.Results) == 0 {
-			return true
-		}
-
-		// Look for sdk.ResourceFunc{ Func: func(...) { ... } }
-		compLit, ok := ret.Results[0].(*ast.CompositeLit)
-		if !ok {
-			return true
-		}
-
-		for _, elt := range compLit.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-
-			if ident, ok := kv.Key.(*ast.Ident); ok && ident.Name == "Func" {
-				if funcLit, ok := kv.Value.(*ast.FuncLit); ok {
-					updateFuncBody = funcLit.Body
-					return false
-				}
-			}
-		}
-
-		return true
-	})
-
+	updateFuncBody := resource.UpdateFuncBody
 	if updateFuncBody == nil {
 		return handledProps
 	}
@@ -424,13 +366,7 @@ func reportMissingProperties(pass *analysis.Pass, resource *helper.TypedResource
 	}
 
 	// Sort for consistent output
-	for i := 0; i < len(missingProps); i++ {
-		for j := i + 1; j < len(missingProps); j++ {
-			if missingProps[i] > missingProps[j] {
-				missingProps[i], missingProps[j] = missingProps[j], missingProps[i]
-			}
-		}
-	}
+	sort.Strings(missingProps)
 
 	// Report at the Update function
 	if resource.UpdateFunc != nil {
