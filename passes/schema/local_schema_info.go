@@ -73,6 +73,7 @@ func runLocal(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Skip if it's not a schemaMap
+		// TODO: could also detect if the schema is defined as &pluginsdk.Schema{} or &schema.Schema{}
 		if !helper.IsSchemaMap(comp) {
 			return
 		}
