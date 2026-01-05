@@ -87,7 +87,7 @@ func NewTypedResourceInfo(resourceTypeName string, file *ast.File, info *types.I
 				result.ReadFunc = d
 			case "Update":
 				result.UpdateFunc = d
-				result.UpdateFuncBody = extractUpdateFuncBody(d)
+				result.UpdateFuncBody = extractFuncFromResourceFunc(d)
 			case "Delete":
 				result.DeleteFunc = d
 			}
@@ -157,14 +157,14 @@ func IsResourceWithUpdateInterface(expr ast.Expr) bool {
 	return selExpr.Sel.Name == "ResourceWithUpdate"
 }
 
-// extractUpdateFuncBody extracts the function body from sdk.ResourceFunc{ Func: func(...) {...} }
-func extractUpdateFuncBody(updateFunc *ast.FuncDecl) *ast.BlockStmt {
-	if updateFunc == nil || updateFunc.Body == nil {
+// extractFuncFromResourceFunc extracts the function body from sdk.ResourceFunc{ Func: func(...) {...} }
+func extractFuncFromResourceFunc(resourceFunc *ast.FuncDecl) *ast.BlockStmt {
+	if resourceFunc == nil || resourceFunc.Body == nil {
 		return nil
 	}
 
-	var updateFuncBody *ast.BlockStmt
-	ast.Inspect(updateFunc.Body, func(n ast.Node) bool {
+	var funcBody *ast.BlockStmt
+	ast.Inspect(resourceFunc.Body, func(n ast.Node) bool {
 		ret, ok := n.(*ast.ReturnStmt)
 		if !ok || len(ret.Results) == 0 {
 			return true
@@ -184,7 +184,7 @@ func extractUpdateFuncBody(updateFunc *ast.FuncDecl) *ast.BlockStmt {
 
 			if ident, ok := kv.Key.(*ast.Ident); ok && ident.Name == "Func" {
 				if funcLit, ok := kv.Value.(*ast.FuncLit); ok {
-					updateFuncBody = funcLit.Body
+					funcBody = funcLit.Body
 					return false
 				}
 			}
@@ -193,7 +193,7 @@ func extractUpdateFuncBody(updateFunc *ast.FuncDecl) *ast.BlockStmt {
 		return true
 	})
 
-	return updateFuncBody
+	return funcBody
 }
 
 // Get schema map returned from func directly
