@@ -66,7 +66,6 @@ func runAZSD001(pass *analysis.Pass) (interface{}, error) {
 	// Iterate over cached schema infos
 	for schemaLit, cached := range schemaInfoCache {
 		schemaInfo := cached.Info
-		fieldName := cached.PropertyName
 
 		// Check if MaxItems is 1
 		if schemaInfo.Schema.MaxItems != 1 {
@@ -123,8 +122,8 @@ func runAZSD001(pass *analysis.Pass) (interface{}, error) {
 			if !hasComment {
 				pos := pass.Fset.Position(schemaLit.Pos())
 				if loader.ShouldReport(pos.Filename, pos.Line) {
-					pass.Reportf(schemaLit.Pos(), "%s: field %q has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
-						azsd001Name, fieldName,
+					pass.Reportf(schemaLit.Pos(), "%s: field has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
+						azsd001Name,
 						helper.IssueLine("MaxItems: 1"),
 						helper.FixedCode("flattening"),
 						helper.FixedCode("'// Additional properties will be added per service team confirmation'"))

@@ -50,7 +50,6 @@ func runAZBP001(pass *analysis.Pass) (interface{}, error) {
 
 	for schemaLit, cached := range schemaInfoCache {
 		schemaInfo := cached.Info
-		propertyName := cached.PropertyName
 
 		// Type check: only check String fields
 		if !schemaInfo.IsType(schema.SchemaValueTypeString) {
@@ -68,8 +67,8 @@ func runAZBP001(pass *analysis.Pass) (interface{}, error) {
 		if !hasValidation {
 			pos := pass.Fset.Position(schemaLit.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(schemaLit.Pos(), "%s: string argument %q must have ValidateFunc\n",
-					azbp001Name, propertyName)
+				pass.Reportf(schemaLit.Pos(), "%s: string argument must have ValidateFunc\n",
+					azbp001Name)
 			}
 		}
 	}

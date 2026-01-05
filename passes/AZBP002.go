@@ -57,7 +57,6 @@ func runAZBP002(pass *analysis.Pass) (interface{}, error) {
 	// Iterate over cached schema infos
 	for schemaLit, cached := range schemaInfoCache {
 		schemaInfo := cached.Info
-		fieldName := cached.PropertyName
 
 		// Only check fields that are both Optional and Computed
 		if !schemaInfo.Schema.Optional || !schemaInfo.Schema.Computed {
@@ -79,8 +78,8 @@ func runAZBP002(pass *analysis.Pass) (interface{}, error) {
 		if optionalPos > computedPos {
 			pos := pass.Fset.Position(schemaLit.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(schemaLit.Pos(), "%s: field %q has %s and %s in wrong order (%s must come before %s)",
-					azbp002Name, fieldName,
+				pass.Reportf(schemaLit.Pos(), "%s: field has %s and %s in wrong order (%s must come before %s)",
+					azbp002Name,
 					helper.FixedCode("Optional"), helper.IssueLine("Computed"),
 					helper.FixedCode("Optional"), helper.IssueLine("Computed"))
 			}
@@ -112,8 +111,8 @@ func runAZBP002(pass *analysis.Pass) (interface{}, error) {
 		if !hasOCComment {
 			pos := pass.Fset.Position(schemaLit.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(schemaLit.Pos(), "%s: field %q is Optional+Computed but missing required comment. Add %s between Optional and Computed\n",
-					azbp002Name, fieldName, helper.FixedCode("'// NOTE: O+C - <explanation>'"))
+				pass.Reportf(schemaLit.Pos(), "%s: field is Optional+Computed but missing required comment. Add %s between Optional and Computed\n",
+					azbp002Name, helper.FixedCode("'// NOTE: O+C - <explanation>'"))
 			}
 		}
 	}

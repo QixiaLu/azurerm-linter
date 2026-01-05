@@ -2,11 +2,23 @@ package helper
 
 import (
 	"go/ast"
-	"go/types"
 	"go/token"
+	"go/types"
 
+	"github.com/bflad/tfproviderlint/helper/astutils"
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"golang.org/x/tools/go/analysis"
+)
+
+const (
+	TypeNameSchema = "Schema"
+
+	// Package paths for schema types
+	ModuleTerraformPluginSDK = "github.com/hashicorp/terraform-plugin-sdk/v2"
+	PackageModulePathSchema  = "helper/schema"
+
+	// azurerm provider specific package
+	PackagePathPluginSDK = "github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 )
 
 // SchemaFieldInfo represents a field in a Terraform schema with its schema information
@@ -36,11 +48,48 @@ func IsSchemaMap(comp *ast.CompositeLit) bool {
 	}
 
 	selExpr, ok := starExpr.X.(*ast.SelectorExpr)
-	if !ok || selExpr.Sel.Name != "Schema" {
+	if !ok || selExpr.Sel.Name != TypeNameSchema {
 		return false
 	}
 
 	return true
+}
+
+// IsSchemaSchema checks if a composite literal is of type schema.Schema or pluginsdk.Schema
+func IsSchemaSchema(pass *analysis.Pass, cl *ast.CompositeLit) bool {
+	if cl.Type == nil {
+		return false
+	}
+
+	t := pass.TypesInfo.TypeOf(cl.Type)
+	if t == nil {
+		return false
+	}
+
+	return isTypeSchema(t)
+}
+
+// isTypeSchema returns if the type is Schema from helper/schema or pluginsdk package
+func isTypeSchema(t types.Type) bool {
+	switch t := t.(type) {
+	case *types.Alias:
+		return isTypeSchema(types.Unalias(t))
+	case *types.Named:
+		// Check if it's from helper/schema package
+		if astutils.IsModulePackageNamedType(t, ModuleTerraformPluginSDK, PackageModulePathSchema, TypeNameSchema) {
+			return true
+		}
+		// Check if it's from pluginsdk package (azurerm provider specific)
+		if t.Obj().Name() == TypeNameSchema && t.Obj().Pkg() != nil &&
+			t.Obj().Pkg().Path() == PackagePathPluginSDK {
+			return true
+		}
+		return false
+	case *types.Pointer:
+		return isTypeSchema(t.Elem())
+	default:
+		return false
+	}
 }
 
 // IsNestedSchemaMap checks if a schema map CompositeLit is nested within an Elem field
@@ -124,7 +173,7 @@ func GetNestedSchemaMap(resourceSchema *ast.CompositeLit) *ast.CompositeLit {
 		if !ok {
 			continue
 		}
-		if ident, ok := fieldKV.Key.(*ast.Ident); ok && ident.Name == "Schema" {
+		if ident, ok := fieldKV.Key.(*ast.Ident); ok && ident.Name == TypeNameSchema {
 			if compLit, ok := fieldKV.Value.(*ast.CompositeLit); ok {
 				nestedSchemaMap = compLit
 			}
