@@ -66,7 +66,7 @@ func runAZNR001(pass *analysis.Pass) (interface{}, error) {
 
 		// Apply filename filtering
 		filename := pass.Fset.Position(comp.Pos()).Filename
-		if !loader.IsFileChanged(filename) || !loader.IsNewFile(filename) {
+		if !loader.IsNewFile(filename) {
 			return
 		}
 

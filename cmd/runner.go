@@ -87,7 +87,7 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 	var hasLoadErrors bool
 	packages.Visit(pkgs, nil, func(pkg *packages.Package) {
 		for _, err := range pkg.Errors {
-			log.Println(err)
+			log.Printf("Error: failed to load package: %v", err)
 			hasLoadErrors = true
 		}
 	})
@@ -119,7 +119,7 @@ func (r *Runner) reportDiagnostics(graph *checker.Graph) bool {
 
 	for act := range graph.All() {
 		if act.Err != nil {
-			log.Printf("%s: %v", act.Package.PkgPath, act.Err)
+			fmt.Printf("%s: %v\n", act.Package.PkgPath, act.Err)
 			foundIssues = true
 			continue
 		}
@@ -132,7 +132,7 @@ func (r *Runner) reportDiagnostics(graph *checker.Graph) bool {
 	}
 
 	if foundIssues {
-		log.Printf("Found %d issue(s)", issueCount)
+		fmt.Printf("Found %d issue(s)\n", issueCount)
 	}
 
 	return foundIssues
