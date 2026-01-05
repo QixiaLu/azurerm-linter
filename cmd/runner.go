@@ -87,7 +87,7 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 	var hasLoadErrors bool
 	packages.Visit(pkgs, nil, func(pkg *packages.Package) {
 		for _, err := range pkg.Errors {
-			log.Println(err)
+			log.Printf("Error: failed to load package: %v", err)
 			hasLoadErrors = true
 		}
 	})
