@@ -122,11 +122,19 @@ func runAZSD001(pass *analysis.Pass) (interface{}, error) {
 			if !hasComment {
 				pos := pass.Fset.Position(schemaLit.Pos())
 				if loader.ShouldReport(pos.Filename, pos.Line) {
-					pass.Reportf(schemaLit.Pos(), "%s: field has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
-						azsd001Name,
-						helper.IssueLine("MaxItems: 1"),
-						helper.FixedCode("flattening"),
-						helper.FixedCode("'// Additional properties will be added per service team confirmation'"))
+					if propertyName := cached.PropertyName; propertyName != "" {
+						pass.Reportf(schemaLit.Pos(), "%s: field `%s` has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
+							azsd001Name, propertyName,
+							helper.IssueLine("MaxItems: 1"),
+							helper.FixedCode("flattening"),
+							helper.FixedCode("'// Additional properties will be added per service team confirmation'"))
+					} else {
+						pass.Reportf(schemaLit.Pos(), "%s: field has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
+							azsd001Name,
+							helper.IssueLine("MaxItems: 1"),
+							helper.FixedCode("flattening"),
+							helper.FixedCode("'// Additional properties will be added per service team confirmation'"))
+					}
 				}
 			}
 		}
