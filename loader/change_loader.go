@@ -226,12 +226,12 @@ func (cs *ChangeSet) ShouldReport(filename string, line int) bool {
 // IsFileChanged checks if a file has any changes
 func (cs *ChangeSet) IsFileChanged(filename string) bool {
 	if len(cs.changedFiles) == 0 {
-		return true
+		return false
 	}
 
 	relPath := normalizeFilePath(filename)
 	if !isServiceFile(relPath) {
-		return true
+		return false
 	}
 
 	return cs.changedFiles[relPath]
