@@ -25,8 +25,12 @@ Schema fields should be ordered as follows:
    or 'name' then 'parent_resource_id')
 2. The 'location' field.
 3. Required fields, sorted alphabetically.
+   (Since it might contain fields made up the resource's ID, these require special ordering. 
+   And the linter currently cannot get those fields. 
+   The sorted rule for required properties at top level is skipped)
 4. Optional fields, sorted alphabetically.
-5. Computed fields, sorted alphabetically.`
+5. Computed fields, sorted alphabetically.
+6. Tags field`
 
 const aznr001Name = "AZNR001"
 
@@ -140,10 +144,14 @@ func getAZNR001ExpectedOrder(fields []helper.SchemaFieldInfo, isNested bool) []s
 	if !isNested {
 		// Track which special fields exist and are required
 		specialRequiredFields := make(map[string]bool)
+		var locationIsComputed bool
 		for _, field := range fields {
 			if field.Name == "name" || field.Name == "resource_group_name" || field.Name == "location" {
 				if field.SchemaInfo != nil && field.SchemaInfo.Schema.Required {
 					specialRequiredFields[field.Name] = true
+				}
+				if field.Name == "location" && field.SchemaInfo != nil && field.SchemaInfo.Schema.Computed {
+					locationIsComputed = true
 				}
 			}
 		}
@@ -159,10 +167,22 @@ func getAZNR001ExpectedOrder(fields []helper.SchemaFieldInfo, isNested bool) []s
 		var requiredFields []string
 		var optionalFields []string
 		var computedFields []string
+		var tagsField string
 
 		for _, field := range fields {
 			// Skip special required fields as they're already added
 			if (field.Name == "name" || field.Name == "resource_group_name" || field.Name == "location") && field.SchemaInfo != nil && field.SchemaInfo.Schema.Required {
+				continue
+			}
+
+			// Handle tags field separately
+			if field.Name == "tags" {
+				tagsField = field.Name
+				continue
+			}
+
+			// Skip location if it's computed (will be added at the beginning of computed fields)
+			if field.Name == "location" && locationIsComputed {
 				continue
 			}
 
@@ -186,7 +206,17 @@ func getAZNR001ExpectedOrder(fields []helper.SchemaFieldInfo, isNested bool) []s
 		sort.Strings(computedFields)
 
 		result = append(result, optionalFields...)
+
+		// Add location at the beginning of computed fields if it's computed
+		if locationIsComputed {
+			result = append(result, "location")
+		}
 		result = append(result, computedFields...)
+
+		// Add tags field at the end if it exists
+		if tagsField != "" {
+			result = append(result, tagsField)
+		}
 	} else {
 		// Nested schema
 		var requiredFields []string
@@ -236,23 +266,53 @@ func validateAZNR001Order(fields []helper.SchemaFieldInfo, expectedOrder []strin
 		rgIdx, hasRG := fieldMap["resource_group_name"]
 		locIdx, hasLoc := fieldMap["location"]
 
-		if hasName && hasRG && nameIdx > rgIdx {
-			return "'resource_group_name' field must come after 'name' field"
+		// Check if location is computed
+		locationIsComputed := false
+		if hasLoc {
+			locField := fields[locIdx]
+			if locField.SchemaInfo != nil && locField.SchemaInfo.Schema.Computed && !locField.SchemaInfo.Schema.Required && !locField.SchemaInfo.Schema.Optional {
+				locationIsComputed = true
+			}
 		}
-		if hasRG && hasLoc && rgIdx > locIdx {
-			return "'location' field must come after 'resource_group_name' field"
-		}
-		if hasName && hasLoc && nameIdx > locIdx {
-			return "'location' field must come after 'name' field"
+
+		// Only check location ordering if it's not computed
+		if !locationIsComputed {
+			if hasName && hasRG && nameIdx > rgIdx {
+				return "'resource_group_name' field must come after 'name' field"
+			}
+			if hasRG && hasLoc && rgIdx > locIdx {
+				return "'location' field must come after 'resource_group_name' field"
+			}
+			if hasName && hasLoc && nameIdx > locIdx {
+				return "'location' field must come after 'name' field"
+			}
+		} else {
+			// If location is computed, only check name and resource_group_name ordering
+			if hasName && hasRG && nameIdx > rgIdx {
+				return "'resource_group_name' field must come after 'name' field"
+			}
 		}
 
 		// Check optional and computed fields are in correct alphabetical order
 		// Build a list of optional and computed fields in their actual order
 		var optionalActual []string
 		var computedActual []string
+		var tagsIdx = -1
+		var locationComputedIdx = -1
 
-		for _, field := range fields {
-			if field.Name == "name" || field.Name == "resource_group_name" || field.Name == "location" {
+		for i, field := range fields {
+			if field.Name == "tags" {
+				tagsIdx = i
+				continue
+			}
+
+			// Check if location is computed
+			if field.Name == "location" && field.SchemaInfo != nil && field.SchemaInfo.Schema.Computed {
+				locationComputedIdx = i
+				continue
+			}
+
+			if field.Name == "name" || field.Name == "resource_group_name" || (field.Name == "location" && field.SchemaInfo != nil && field.SchemaInfo.Schema.Required) {
 				continue
 			}
 
@@ -265,6 +325,29 @@ func validateAZNR001Order(fields []helper.SchemaFieldInfo, expectedOrder []strin
 				} else if isComputed {
 					computedActual = append(computedActual, field.Name)
 				}
+			}
+		}
+
+		// Check if tags field is at the end (if it exists)
+		if tagsIdx != -1 && tagsIdx != len(fields)-1 {
+			return "'tags' field must be at the end of the schema"
+		}
+
+		// Check if computed location is at the beginning of computed fields
+		if locationComputedIdx != -1 && len(computedActual) > 0 {
+			// Find the index of the first computed field (excluding location)
+			firstComputedIdx := -1
+			for i, field := range fields {
+				if field.Name == "location" {
+					continue
+				}
+				if field.SchemaInfo != nil && field.SchemaInfo.Schema.Computed && !field.SchemaInfo.Schema.Optional && !field.SchemaInfo.Schema.Required {
+					firstComputedIdx = i
+					break
+				}
+			}
+			if firstComputedIdx != -1 && locationComputedIdx > firstComputedIdx {
+				return "'location' field must be at the beginning of computed fields"
 			}
 		}
 

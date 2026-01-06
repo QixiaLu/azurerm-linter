@@ -45,11 +45,6 @@ func resourceFieldCategories() *schema.Resource {
 				Optional: true,
 			},
 
-			"tags": {
-				Type:     schema.TypeMap,
-				Optional: true,
-			},
-
 			// Computed fields (alphabetical)
 			"created_time": {
 				Type:     schema.TypeString,
@@ -60,6 +55,11 @@ func resourceFieldCategories() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+
+			"tags": {
+				Type:     schema.TypeMap,
+				Optional: true,
+			},
 		},
 	}
 }
@@ -67,7 +67,7 @@ func resourceFieldCategories() *schema.Resource {
 // Test: Wrong category order
 func resourceWrongCategoryOrder() *schema.Resource {
 	return &schema.Resource{
-		Schema: map[string]*schema.Schema{ // want `name, resource_group_name, location, account_tier, sku, enable_https, tags, created_time, primary_key`
+		Schema: map[string]*schema.Schema{ // want `name, resource_group_name, location, account_tier, sku, enable_https, created_time, primary_key, tags`
 			"name": {
 				Type:     schema.TypeString,
 				Required: true,
