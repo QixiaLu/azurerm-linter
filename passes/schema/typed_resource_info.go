@@ -63,15 +63,24 @@ var TypedResourceInfoAnalyzer = &analysis.Analyzer{
 }
 
 func runTypedResourceInfo(pass *analysis.Pass) (interface{}, error) {
-	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	commonSchemaInfo := pass.ResultOf[CommonAnalyzer].(*CommonSchemaInfo)
+	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	if !ok {
+		return nil, nil
+	}
+	commonSchemaInfo, ok := pass.ResultOf[CommonAnalyzer].(*CommonSchemaInfo)
+	if !ok {
+		return nil, nil
+	}
 
 	var result []*helper.TypedResourceInfo
 	seen := make(map[string]bool)
 
 	nodeFilter := []ast.Node{(*ast.GenDecl)(nil)}
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
-		genDecl := n.(*ast.GenDecl)
+		genDecl, ok := n.(*ast.GenDecl)
+		if !ok {
+			return
+		}
 
 		fileName := pass.Fset.Position(genDecl.Pos()).Filename
 		if !strings.HasSuffix(fileName, "_resource.go") {

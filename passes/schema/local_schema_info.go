@@ -7,7 +7,6 @@ import (
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/qixialu/azurerm-linter/helper"
-	"github.com/qixialu/azurerm-linter/loader"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -178,10 +177,6 @@ func runLocal(pass *analysis.Pass) (interface{}, error) {
 
 // shouldProcessFile checks if a file should be processed based on filters
 func shouldProcessFile(filename string) bool {
-	if !loader.IsFileChanged(filename) {
-		return false
-	}
-
 	for _, skip := range skipFileSuffix {
 		if strings.HasSuffix(filename, skip) {
 			return false

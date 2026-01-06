@@ -80,7 +80,10 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	allResources := pass.ResultOf[schema.TypedResourceInfoAnalyzer].([]*helper.TypedResourceInfo)
+	allResources, ok := pass.ResultOf[schema.TypedResourceInfoAnalyzer].([]*helper.TypedResourceInfo)
+	if !ok {
+		return nil, nil
+	}
 	for _, resource := range allResources {
 		// Filter: must have Update method
 		if resource.UpdateFunc == nil {
