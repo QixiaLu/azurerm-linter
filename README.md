@@ -160,7 +160,7 @@ Actual order:
 Schema-related checks (e.g., AZNR002, AZSD001, AZSD002) analyze schemas defined as `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals returned from functions. This includes:
 - Direct returns: `return &map[string]*pluginsdk.Schema{...}`
 - Variable returns: `output := map[string]*pluginsdk.Schema{...}; return output` (captures initial `:=` definition only, ignoring subsequent `=` modifications)
-- Inline schema definitions: `"field": &pluginsdk.Schema{...}` or `"field": pluginsdk.Schema{...}`
+- Inline schema definitions: `return &pluginsdk.Schema{...}`
 - Cross-package function calls: Only `commonschema` package is currently supported (e.g., `commonschema.ResourceGroupName()`)
 - Same-package helper functions returning schemas
 

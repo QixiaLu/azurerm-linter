@@ -160,18 +160,11 @@ func GetResourceSchemaFromElem(elemKV *ast.KeyValueExpr) *ast.CompositeLit {
 // GetNestedSchemaMap extracts the Schema field value from a &schema.Resource{...} composite literal
 // Returns nil if the Schema field is not found or is not a composite literal
 func GetNestedSchemaMap(resourceSchema *ast.CompositeLit) *ast.CompositeLit {
-	var nestedSchemaMap *ast.CompositeLit
-	for _, fld := range resourceSchema.Elts {
-		fieldKV, ok := fld.(*ast.KeyValueExpr)
-		if !ok {
-			continue
-		}
-		if ident, ok := fieldKV.Key.(*ast.Ident); ok && ident.Name == TypeNameSchema {
-			if compLit, ok := fieldKV.Value.(*ast.CompositeLit); ok {
-				nestedSchemaMap = compLit
-			}
-			break
-		}
-	}
-	return nestedSchemaMap
+    fields := astutils.CompositeLitFields(resourceSchema)
+    if kvExpr := fields[schema.ResourceFieldSchema]; kvExpr != nil {
+        if compLit, ok := kvExpr.Value.(*ast.CompositeLit); ok {
+            return compLit
+        }
+    }
+    return nil
 }
