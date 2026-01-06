@@ -29,39 +29,33 @@ type SchemaFieldInfo struct {
 }
 
 // IsSchemaMap checks if a composite literal is a map[string]*schema.Schema or map[string]*pluginsdk.Schema
-func IsSchemaMap(comp *ast.CompositeLit) bool {
-	// Check if it's a map literal
-	mapType, ok := comp.Type.(*ast.MapType)
-	if !ok {
-		return false
-	}
+func IsSchemaMap(cl *ast.CompositeLit, info *types.Info) bool {
+    // Check if it's a map literal
+    mapType, ok := cl.Type.(*ast.MapType)
+    if !ok {
+        return false
+    }
 
-	// Check if key is string
-	if ident, ok := mapType.Key.(*ast.Ident); !ok || ident.Name != "string" {
-		return false
-	}
+    // Check if key is string
+    switch k := mapType.Key.(type) {
+    case *ast.Ident:
+        if k.Name != "string" {
+            return false
+        }
+    default:
+        return false
+    }
 
-	// Check if value is *schema.Schema or *pluginsdk.Schema
-	starExpr, ok := mapType.Value.(*ast.StarExpr)
-	if !ok {
-		return false
-	}
-
-	selExpr, ok := starExpr.X.(*ast.SelectorExpr)
-	if !ok || selExpr.Sel.Name != TypeNameSchema {
-		return false
-	}
-
-	return true
+    return isTypeSchema(info.TypeOf(mapType.Value))
 }
 
 // IsSchemaSchema checks if a composite literal is of type schema.Schema or pluginsdk.Schema
-func IsSchemaSchema(pass *analysis.Pass, cl *ast.CompositeLit) bool {
+func IsSchemaSchema(typesInfo *types.Info, cl *ast.CompositeLit) bool {
 	if cl.Type == nil {
 		return false
 	}
 
-	t := pass.TypesInfo.TypeOf(cl.Type)
+	t := typesInfo.TypeOf(cl.Type)
 	if t == nil {
 		return false
 	}
@@ -93,7 +87,6 @@ func isTypeSchema(t types.Type) bool {
 }
 
 // IsNestedSchemaMap checks if a schema map CompositeLit is nested within an Elem field
-// It uses position-based checking which is fast with early termination
 func IsNestedSchemaMap(file *ast.File, schemaLit *ast.CompositeLit) bool {
 	var isNested bool
 
@@ -164,7 +157,7 @@ func GetResourceSchemaFromElem(elemKV *ast.KeyValueExpr) *ast.CompositeLit {
 	return nil
 }
 
-// GetNestedSchemaMap extracts the Schema field value from a Resource composite literal
+// GetNestedSchemaMap extracts the Schema field value from a &schema.Resource{...} composite literal
 // Returns nil if the Schema field is not found or is not a composite literal
 func GetNestedSchemaMap(resourceSchema *ast.CompositeLit) *ast.CompositeLit {
 	var nestedSchemaMap *ast.CompositeLit

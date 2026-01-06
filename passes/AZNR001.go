@@ -82,12 +82,12 @@ func runAZNR001(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Check if it's a schema map
-		if !helper.IsSchemaMap(comp) {
+		if !helper.IsSchemaMap(comp, pass.TypesInfo) {
 			return
 		}
 
 		// Extract schema fields
-		fields := schema.ExtractFromCompositeLit(pass, comp, commonSchemaInfo)
+		fields := schema.ExtractSchemaInfoFromMap(pass, comp, commonSchemaInfo)
 		if len(fields) == 0 {
 			return
 		}

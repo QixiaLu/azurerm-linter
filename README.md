@@ -157,4 +157,13 @@ Actual order:
 
 ## Limitations
 
-Schema-related checks (e.g., AZNR002, AZSD001, AZSD002) only analyze inline schemas defined as direct `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals returned from functions. Schemas stored in variables, nested blocks, or imported from other packages (except `commonschema`) are excluded to reduce false positives caused by runtime modifications (e.g., conditional properties based on feature flags) that cannot be determined through static AST analysis.
+Schema-related checks (e.g., AZNR002, AZSD001, AZSD002) analyze schemas defined as `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals returned from functions. This includes:
+- Direct returns: `return &map[string]*pluginsdk.Schema{...}`
+- Variable returns: `output := map[string]*pluginsdk.Schema{...}; return output` (captures initial `:=` definition only, ignoring subsequent `=` modifications)
+- Inline schema definitions: `"field": &pluginsdk.Schema{...}` or `"field": pluginsdk.Schema{...}`
+- Cross-package function calls: Only `commonschema` package is currently supported (e.g., `commonschema.ResourceGroupName()`)
+- Same-package helper functions returning schemas
+
+Schemas defined in other ways (nested blocks) are excluded to reduce false positives from runtime modifications (e.g., conditional properties based on feature flags) that cannot be determined through static analysis.
+
+For detailed limitations of each analyzer, refer to the documentation in the respective analyzer files (e.g., `passes/AZNR002.go`).

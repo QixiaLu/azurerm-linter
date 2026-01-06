@@ -66,7 +66,6 @@ func runAZBP002(pass *analysis.Pass) (interface{}, error) {
 		// Get positions of Optional and Computed fields from cached SchemaInfo
 		optionalKV := schemaInfo.Fields[schema.SchemaFieldOptional]
 		computedKV := schemaInfo.Fields[schema.SchemaFieldComputed]
-
 		if optionalKV == nil || computedKV == nil {
 			continue
 		}

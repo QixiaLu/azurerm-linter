@@ -15,6 +15,37 @@ import (
 
 const localAnalyzerName = "localschemainfo"
 
+const localAnalyzerDoc = `Gathers all inline schema definitions declared in the current package.
+
+Key Features:
+ 1. Extracts schema information from map[string]*Schema composite literals
+ 2. Processes standalone &Schema{...} composite literals
+ 3. Filters out test files, migrations, and schemas inside feature flag conditions
+
+Example:
+	// In a resource file
+	func (r MyResource) Arguments() map[string]*pluginsdk.Schema {
+	    return map[string]*pluginsdk.Schema{
+	        "name": {                    // Captured with PropertyName="name"
+	            Type:     TypeString,
+	            Required: true,
+	        },
+	        "tags": commonschema.Tags(), // Not captured (function call)
+	    }
+	}
+
+	// Standalone schema variable
+	var locationSchema = &pluginsdk.Schema{  // Captured with PropertyName=""
+	    Type:     TypeString,
+	    Optional: true,
+	}
+
+Skipped patterns:
+ - Schemas inside if blocks (feature flags)
+ - Schemas in Elem field values: Elem: &pluginsdk.Schema{...}
+ - Test files, migration files, registration files
+`
+
 type LocalSchemaInfoWithName struct {
 	Info         *schema.SchemaInfo
 	PropertyName string
@@ -22,7 +53,7 @@ type LocalSchemaInfoWithName struct {
 
 var LocalAnalyzer = &analysis.Analyzer{
 	Name:       localAnalyzerName,
-	Doc:        "Gather all inline schema infos declared in the package",
+	Doc:        localAnalyzerDoc,
 	Run:        runLocal,
 	Requires:   []*analysis.Analyzer{inspect.Analyzer},
 	ResultType: reflect.TypeOf(map[*ast.CompositeLit]*LocalSchemaInfoWithName{}),
@@ -69,7 +100,7 @@ func runLocal(pass *analysis.Pass) (interface{}, error) {
 					if unary, ok := kv.Value.(*ast.UnaryExpr); ok && unary.Op.String() == "&" {
 						if comp, ok := unary.X.(*ast.CompositeLit); ok {
 							// Only skip if it's a Schema type, not Resource type
-							if helper.IsSchemaSchema(pass, comp) {
+							if helper.IsSchemaSchema(pass.TypesInfo, comp) {
 								skipSchemas[comp] = true
 							}
 						}
@@ -96,7 +127,7 @@ func runLocal(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Phase 1: Process map[string]*Schema composite literals
-		if helper.IsSchemaMap(comp) {
+		if helper.IsSchemaMap(comp, pass.TypesInfo) {
 			for _, elt := range comp.Elts {
 				kv, ok := elt.(*ast.KeyValueExpr)
 				if !ok {
@@ -126,7 +157,7 @@ func runLocal(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Phase 2: Process standalone &Schema composite literals
-		if helper.IsSchemaSchema(pass, comp) {
+		if helper.IsSchemaSchema(pass.TypesInfo, comp) {
 			// Skip schemas inside if blocks or Elem values
 			if skipSchemas[comp] {
 				return

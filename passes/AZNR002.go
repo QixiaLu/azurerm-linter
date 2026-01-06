@@ -2,6 +2,7 @@ package passes
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"log"
 	"sort"
@@ -13,8 +14,6 @@ import (
 	"github.com/qixialu/azurerm-linter/passes/schema"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/ast/inspector"
 )
 
 const AZNR002Doc = `check that top-level updatable properties are handled in Update function
@@ -22,14 +21,15 @@ const AZNR002Doc = `check that top-level updatable properties are handled in Upd
 The AZNR002 analyzer checks that all updatable properties (not marked as ForceNew)
 are properly handled in the Update function for typed resources.
 
-If git filter enabled, this rule only applies on newly created file.
+If git filter enabled, this rule only applies on newly created typed resource.
 
 This analyzer will be skipped if a helper function is utilized to handle the update.
 
 For typed resources, this means checking for metadata.ResourceData.HasChange("property_name").
 
-Note: This analyzer currently only supports Arguments() functions that directly return 
-map[string]*pluginsdk.Schema{}.
+Note: This analyzer supports Arguments() functions that:
+ - Directly return map[string]*pluginsdk.Schema{}
+ - Return a variable (traces to initial := definition, ignoring subsequent modifications)
 
 Example violation:
   // In Arguments()
@@ -69,11 +69,10 @@ var AZNR002Analyzer = &analysis.Analyzer{
 	Name:     aznr002Name,
 	Doc:      AZNR002Doc,
 	Run:      runAZNR002,
-	Requires: []*analysis.Analyzer{inspect.Analyzer, schema.CommonAnalyzer},
+	Requires: []*analysis.Analyzer{schema.TypedResourceInfoAnalyzer},
 }
 
 func runAZNR002(pass *analysis.Pass) (interface{}, error) {
-	// Skip specified packages
 	pkgPath := pass.Pkg.Path()
 	for _, skip := range aznr002SkipPackages {
 		if strings.Contains(pkgPath, skip) {
@@ -81,116 +80,52 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	if !ok {
-		return nil, nil
-	}
-	commonSchemaInfo, ok := pass.ResultOf[schema.CommonAnalyzer].(*schema.CommonSchemaInfo)
-	if !ok {
-		return nil, nil
-	}
+	allResources := pass.ResultOf[schema.TypedResourceInfoAnalyzer].([]*helper.TypedResourceInfo)
+	for _, resource := range allResources {
+		// Filter: must have Update method
+		if resource.UpdateFunc == nil {
+			continue
+		}
 
-	// Find all typed resources in this package
-	typedResources := findTypedResourcesWithUpdate(pass, inspector)
+		// Filter: git filter - only check new files
+		fileName := pass.Fset.Position(resource.UpdateFunc.Pos()).Filename
+		if !loader.IsNewFile(fileName) {
+			continue
+		}
 
-	// Analyze each typed resource
-	for _, resource := range typedResources {
-		// Step 1: Extract updatable properties from schema
-		// TODO: Could get from internal provider instead of AST Parsing if this rule is included under internal/tools in AzureRM
-		updatableProps := extractUpdatableProperties(pass, resource, commonSchemaInfo)
+		// Filter: must have extracted ArgumentsProperties
+		if len(resource.ArgumentsProperties) == 0 {
+			pos := pass.Fset.Position(resource.UpdateFunc.Pos())
+			log.Printf("%s:%d: %s: Skipping resource %q - failed to extract schema properties",
+				pos.Filename, pos.Line, aznr002Name, resource.ResourceTypeName)
+			continue
+		}
 
-		// Step 2: Find handled properties in Update()
+		updatableProps := extractUpdatableProperties(resource)
+		if len(updatableProps) == 0 {
+			continue
+		}
+
 		handledProps := findHandledPropertiesInUpdate(resource)
-
-		// Step 3: Report missing properties
 		reportMissingProperties(pass, resource, updatableProps, handledProps)
 	}
 
 	return nil, nil
 }
 
-// findTypedResourcesWithUpdate identifies all typed resources in the package
-func findTypedResourcesWithUpdate(pass *analysis.Pass, inspector *inspector.Inspector) []*helper.TypedResourceInfo {
-	var resources []*helper.TypedResourceInfo
-
-	// First pass: find type declarations that implement sdk.ResourceWithUpdate
-	nodeFilter := []ast.Node{(*ast.GenDecl)(nil)}
-	inspector.Preorder(nodeFilter, func(n ast.Node) {
-		genDecl, ok := n.(*ast.GenDecl)
-		if !ok {
-			return
-		}
-
-		fileName := pass.Fset.Position(genDecl.Pos()).Filename
-		if !loader.IsNewFile(fileName) {
-			return
-		}
-
-		if !strings.HasSuffix(fileName, "_resource.go") {
-			return
-		}
-
-		// Check for interface implementation: var _ sdk.ResourceWithUpdate = TypeName{}
-		for _, spec := range genDecl.Specs {
-			valueSpec, ok := spec.(*ast.ValueSpec)
-			if !ok || !helper.IsResourceWithUpdateInterface(valueSpec.Type) || len(valueSpec.Values) == 0 {
-				continue
-			}
-
-			// Get the resource type name
-			var resourceTypeName string
-			if compLit, ok := valueSpec.Values[0].(*ast.CompositeLit); ok {
-				if ident, ok := compLit.Type.(*ast.Ident); ok {
-					resourceTypeName = ident.Name
-				}
-			}
-			if resourceTypeName == "" {
-				continue
-			}
-
-			// Find the file containing this resource
-			for _, file := range pass.Files {
-				if pass.Fset.Position(file.Pos()).Filename != fileName {
-					continue
-				}
-
-				resource := helper.NewTypedResourceInfo(resourceTypeName, file, pass.TypesInfo)
-				if resource.ModelStruct != nil && resource.ArgumentsFunc != nil && resource.UpdateFunc != nil {
-					resources = append(resources, resource)
-				}
-			}
-		}
-	})
-
-	return resources
-}
-
-// extractUpdatableProperties extracts all updatable properties from the schema
-// only look into `return map[string]*pluginsdk.Schema`
-func extractUpdatableProperties(pass *analysis.Pass, resource *helper.TypedResourceInfo, commonSchemaInfo *schema.CommonSchemaInfo) map[string]string {
+// extractUpdatableProperties filters updatable properties from ArgumentsProperties
+func extractUpdatableProperties(resource *helper.TypedResourceInfo) map[string]string {
 	updatableProps := make(map[string]string)
 
-	funcDecl := resource.ArgumentsFunc
-	if funcDecl == nil || funcDecl.Body == nil {
-		return updatableProps
-	}
-
-	// Look for return statement with map[string]*pluginsdk.Schema
-	var schemaMap = helper.GetSchemaMapReturnedFromFunc(funcDecl)
-	if schemaMap == nil {
-		return updatableProps
-	}
-
-	fields := schema.ExtractFromCompositeLit(pass, schemaMap, commonSchemaInfo)
-
-	tfSchemaToModel := make(map[string]string, len(resource.ModelFieldToTFSchema))
+	tfSchemaToModel := make(map[string]string)
 	for modelField, tfSchema := range resource.ModelFieldToTFSchema {
 		tfSchemaToModel[tfSchema] = modelField
 	}
 
-	// Filter updatable properties (not Computed, not ForceNew)
-	for _, field := range fields {
-		if field.SchemaInfo != nil && !field.SchemaInfo.Schema.Computed && !field.SchemaInfo.Schema.ForceNew {
+	for _, field := range resource.ArgumentsProperties {
+		if field.SchemaInfo != nil &&
+			!field.SchemaInfo.Schema.Computed &&
+			!field.SchemaInfo.Schema.ForceNew {
 			updatableProps[field.Name] = tfSchemaToModel[field.Name]
 		}
 	}
@@ -317,9 +252,23 @@ func detectModelPassedToHelper(body *ast.BlockStmt, modelTypeName string, typesI
 
 			// Check if any argument is the model variable (by type)
 			for _, arg := range call.Args {
-				if ident, ok := arg.(*ast.Ident); ok {
+				var argIdent *ast.Ident
+				// Handle: model, &model, *model
+				switch a := arg.(type) {
+				case *ast.Ident:
+					argIdent = a
+				case *ast.UnaryExpr:
+					if a.Op == token.AND || a.Op == token.MUL {
+						if ident, ok := a.X.(*ast.Ident); ok {
+							argIdent = ident
+						}
+					}
+				}
+
+				if argIdent != nil {
 					// Use TypesInfo to check if this variable is of model type
-					if typ := typesInfo.TypeOf(ident); typ != nil {
+					if typ := typesInfo.TypeOf(argIdent); typ != nil {
+						// Remove pointer if present to get underlying type
 						if ptr, ok := typ.(*types.Pointer); ok {
 							typ = ptr.Elem()
 						}
@@ -355,11 +304,10 @@ func reportMissingProperties(pass *analysis.Pass, resource *helper.TypedResource
 		}
 	}
 
-	// Skip if handledProps len is 0, it's most likely delegated to a helper func
 	if len(missingProps) == 0 || len(handledProps) == 0 {
 		if len(handledProps) == 0 {
 			pos := pass.Fset.Position(resource.UpdateFunc.Pos())
-			log.Printf("%s:%d: %s: Skipping resource %q - the update implementation is delegated to a helper function",
+			log.Printf("%s:%d: %s: Skipping resource %q - update likely delegated to helper function",
 				pos.Filename, pos.Line, aznr002Name, resource.ResourceTypeName)
 		}
 		return

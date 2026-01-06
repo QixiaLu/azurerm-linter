@@ -30,7 +30,7 @@ func (r BadResource) ModelObject() interface{} {
 }
 
 func (r BadResource) Arguments() map[string]*pluginsdk.Schema {
-	return map[string]*pluginsdk.Schema{
+	sche := map[string]*pluginsdk.Schema{
 		"name": {
 			Type:     pluginsdk.TypeString,
 			Required: true,
@@ -44,15 +44,13 @@ func (r BadResource) Arguments() map[string]*pluginsdk.Schema {
 			Type:     pluginsdk.TypeString,
 			Optional: true,
 		},
-		"description": {
-			Type:     pluginsdk.TypeString,
-			Optional: true,
-		},
+		"description": descriptionSchema(),
 		"enabled": {
 			Type:     pluginsdk.TypeBool,
 			Optional: true,
 		},
 	}
+	return sche
 }
 
 func (r BadResource) Attributes() map[string]*pluginsdk.Schema {
@@ -92,5 +90,12 @@ func (r BadResource) Update() sdk.ResourceFunc { // want "AZNR002: resource has 
 
 			return nil
 		},
+	}
+}
+
+func descriptionSchema() *pluginsdk.Schema {
+	return &pluginsdk.Schema{
+		Type:     pluginsdk.TypeString,
+		Optional: true,
 	}
 }

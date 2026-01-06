@@ -2,8 +2,15 @@ package helper
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"strings"
+
+	"golang.org/x/tools/go/analysis"
+)
+
+const (
+	PackagePathSDK = "github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
 )
 
 // TypedResourceInfo represents gathered information about a typed Terraform resource
@@ -12,6 +19,8 @@ type TypedResourceInfo struct {
 	ModelName            string
 	ModelStruct          *ast.StructType
 	ArgumentsFunc        *ast.FuncDecl
+	ArgumentsSchemaMap   *ast.CompositeLit // Arguments() returned schema map
+	ArgumentsProperties  []SchemaFieldInfo // Parsed schema fields from Arguments()
 	AttributesFunc       *ast.FuncDecl
 	CreateFunc           *ast.FuncDecl
 	ReadFunc             *ast.FuncDecl
@@ -142,21 +151,6 @@ func GetReceiverTypeName(expr ast.Expr) string {
 	return ""
 }
 
-// IsResourceWithUpdateInterface checks if a type implements sdk.ResourceWithUpdate
-func IsResourceWithUpdateInterface(expr ast.Expr) bool {
-	selExpr, ok := expr.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-
-	pkgIdent, ok := selExpr.X.(*ast.Ident)
-	if !ok || pkgIdent.Name != "sdk" {
-		return false
-	}
-
-	return selExpr.Sel.Name == "ResourceWithUpdate"
-}
-
 // extractFuncFromResourceFunc extracts the function body from sdk.ResourceFunc{ Func: func(...) {...} }
 func extractFuncFromResourceFunc(resourceFunc *ast.FuncDecl) *ast.BlockStmt {
 	if resourceFunc == nil || resourceFunc.Body == nil {
@@ -197,7 +191,7 @@ func extractFuncFromResourceFunc(resourceFunc *ast.FuncDecl) *ast.BlockStmt {
 }
 
 // Get schema map returned from func directly
-func GetSchemaMapReturnedFromFunc(funcDecl *ast.FuncDecl) *ast.CompositeLit {
+func GetSchemaMapReturnedFromFunc(pass *analysis.Pass, funcDecl *ast.FuncDecl) *ast.CompositeLit {
 	var schemaMap *ast.CompositeLit
 	ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
 		ret, ok := n.(*ast.ReturnStmt)
@@ -205,14 +199,85 @@ func GetSchemaMapReturnedFromFunc(funcDecl *ast.FuncDecl) *ast.CompositeLit {
 			return true
 		}
 
+		// Case 1: Direct return of composite literal
 		if compLit, ok := ret.Results[0].(*ast.CompositeLit); ok {
-			if IsSchemaMap(compLit) {
+			if IsSchemaMap(compLit, pass.TypesInfo) {
 				schemaMap = compLit
 				return false
 			}
 		}
 
+		// Case 2: Return of a variable reference, only look into initial definition, ignoring later assignments
+		if ident, ok := ret.Results[0].(*ast.Ident); ok {
+			if compLit := TraceIdentToCompositeLit(pass.TypesInfo, ident, funcDecl); compLit != nil {
+				if IsSchemaMap(compLit, pass.TypesInfo) {
+					schemaMap = compLit
+					return false
+				}
+			}
+		}
+
 		return true
 	})
+
 	return schemaMap
+}
+
+// TraceIdentToCompositeLit traces an identifier back to its first definition and returns the CompositeLit if found.
+func TraceIdentToCompositeLit(typesInfo *types.Info, ident *ast.Ident, funcDecl *ast.FuncDecl) *ast.CompositeLit {
+	obj := typesInfo.Uses[ident]
+	if obj == nil {
+		return nil
+	}
+
+	// Find the first definition of this variable
+	var defNode ast.Node
+	ast.Inspect(funcDecl.Body, func(node ast.Node) bool {
+		if assign, ok := node.(*ast.AssignStmt); ok {
+			// Only check initial definitions (:=), not reassignments (=)
+			if assign.Tok == token.DEFINE {
+				for i, lhs := range assign.Lhs {
+					if lhsIdent, ok := lhs.(*ast.Ident); ok {
+						if typesInfo.Defs[lhsIdent] == obj && i < len(assign.Rhs) {
+							defNode = assign.Rhs[i]
+							return false
+						}
+					}
+				}
+			}
+		}
+		return defNode == nil
+	})
+
+	// Check if the definition is a composite literal
+	if defNode != nil {
+		if compLit, ok := defNode.(*ast.CompositeLit); ok {
+			return compLit
+		}
+	}
+
+	return nil
+}
+
+// IsTypeSDKResourceInterface checks if the type is an sdk.Resource* interface
+func IsTypeSDKResourceInterface(t types.Type) bool {
+	switch t := t.(type) {
+	case *types.Named:
+		return IsNamedSDKResourceInterface(t)
+	case *types.Pointer:
+		return IsTypeSDKResourceInterface(t.Elem())
+	default:
+		return false
+	}
+}
+
+// IsNamedSDKResourceInterface checks if the named type is an sdk.Resource* interface
+func IsNamedSDKResourceInterface(t *types.Named) bool {
+	obj := t.Obj()
+	if obj == nil || obj.Pkg() == nil {
+		return false
+	}
+
+	return obj.Pkg().Path() == PackagePathSDK &&
+		strings.HasPrefix(obj.Name(), "Resource")
 }
