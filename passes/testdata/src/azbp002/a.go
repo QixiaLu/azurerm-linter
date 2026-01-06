@@ -67,3 +67,11 @@ func invalidCases() map[string]*schema.Schema {
 		},
 	}
 }
+
+func invalidStandaloneCases() *schema.Schema {
+	return &schema.Schema{ // want `AZBP002`
+		Type:     schema.TypeString,
+		Computed: true,
+		Optional: true,
+	}
+}

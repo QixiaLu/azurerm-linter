@@ -17,7 +17,43 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// CommonSchemaInfo stores information about common schema functions
+const commonAnalyzerDoc = `Extracts and caches schema information from the commonschema package in vendor directory.
+
+Key Features:
+ 1. Extracts schema definitions from commonschema functions (e.g., ResourceGroupName())
+ 2. Uses ExtractSchemaInfoFromMap to parse resource schema maps
+ 3. Supports commonschema cross-package calls and same-package function call resolution
+
+Example:
+
+	// Function in commonschema package
+	func ResourceGroupName() *pluginsdk.Schema {
+	    return &pluginsdk.Schema{
+	        Type:     pluginsdk.TypeString,
+	        Required: true,
+	        ForceNew: true,
+	    }
+	}
+
+	// Using commonschema in a resource
+	func (r MyResource) Arguments() map[string]*pluginsdk.Schema {
+	    return map[string]*pluginsdk.Schema{
+	        "name": {Type: pluginsdk.TypeString, Required: true},
+	        "resource_group_name": commonschema.ResourceGroupName(),  // commonschema cross-package call
+	        "metadata": metadataSchema(),                             // same-package call
+	    }
+	}
+
+	// Extract all fields using ExtractSchemaInfoFromMap
+	fields := ExtractSchemaInfoFromMap(pass, schemaMapLiteral, commonInfo)
+	// Returns: []SchemaFieldInfo{
+	//   {Name: "name", SchemaInfo: {Type: String, Required: true}},
+	//   {Name: "resource_group_name", SchemaInfo: {Type: String, Required: true, ForceNew: true}},
+	//   {Name: "metadata", SchemaInfo: {...}},
+	// }
+`
+
+// CommonSchemaInfo stores information about common schema functions.
 type CommonSchemaInfo struct {
 	// Map of package.FunctionName -> *schema.SchemaInfo
 	Functions map[string]*schema.SchemaInfo
@@ -25,7 +61,7 @@ type CommonSchemaInfo struct {
 
 var CommonAnalyzer = &analysis.Analyzer{
 	Name:       "commonschemainfo",
-	Doc:        "Extracts schema information from commonschema packages",
+	Doc:        commonAnalyzerDoc,
 	Run:        runCommon,
 	ResultType: reflect.TypeOf(&CommonSchemaInfo{}),
 }
@@ -138,7 +174,7 @@ func parseHelperPackage(helperPkg *packages.Package, info *CommonSchemaInfo) {
 			}
 
 			// Extract schema info from function body using package's TypesInfo
-			schemaInfo := extractSchemaPropertiesFromFunc(funcDecl, helperPkg.TypesInfo)
+			schemaInfo := extractSingleSchemaPropertyFromFunc(funcDecl, helperPkg.TypesInfo)
 			if schemaInfo != nil {
 				key := helperPkg.PkgPath + "." + funcDecl.Name.Name
 				info.Functions[key] = schemaInfo
@@ -149,8 +185,8 @@ func parseHelperPackage(helperPkg *packages.Package, info *CommonSchemaInfo) {
 	}
 }
 
-func extractSchemaPropertiesFromFunc(funcDecl *ast.FuncDecl, typesInfo *types.Info) *schema.SchemaInfo {
-	// Look for return statements with &schema.Schema{...}
+// Extract schema info from &schema.Schema{...} or &pluginsdk.Schema{} or variable declared inside the function
+func extractSingleSchemaPropertyFromFunc(funcDecl *ast.FuncDecl, typesInfo *types.Info) *schema.SchemaInfo {
 	var returnedSchema *ast.CompositeLit
 
 	ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
@@ -159,37 +195,39 @@ func extractSchemaPropertiesFromFunc(funcDecl *ast.FuncDecl, typesInfo *types.In
 			return true
 		}
 
-		// Handle &schema.Schema{...}
-		var compLit *ast.CompositeLit
-
 		switch expr := ret.Results[0].(type) {
 		case *ast.UnaryExpr:
 			// Handle &schema.Schema{...}
 			if cl, ok := expr.X.(*ast.CompositeLit); ok {
-				compLit = cl
+				returnedSchema = cl
+				return false
 			}
 		case *ast.CompositeLit:
-			compLit = expr
-		}
-
-		if compLit != nil {
-			returnedSchema = compLit
-			return false // Stop inspection
+			// Handle schema.Schema{...}
+			returnedSchema = expr
+			return false
+		case *ast.Ident:
+			// Handle return schema (variable reference)
+			if compLit := helper.TraceIdentToCompositeLit(typesInfo, expr, funcDecl); compLit != nil {
+				if helper.IsSchemaSchema(typesInfo, compLit) {
+					returnedSchema = compLit
+				}
+			}
+			return false
 		}
 
 		return true
 	})
 
-	if returnedSchema == nil {
-		return nil
+	if returnedSchema != nil && helper.IsSchemaSchema(typesInfo, returnedSchema) {
+		return schema.NewSchemaInfo(returnedSchema, typesInfo)
 	}
 
-	// Parse the returned schema using tfproviderlint's NewSchemaInfo with the package's TypesInfo
-	return schema.NewSchemaInfo(returnedSchema, typesInfo)
+	return nil
 }
 
-// ExtractFromCompositeLit extracts schema fields from a map[string]*schema.Schema composite literal
-func ExtractFromCompositeLit(pass *analysis.Pass, smap *ast.CompositeLit, commonSchemaInfo *CommonSchemaInfo) []helper.SchemaFieldInfo {
+// ExtractSchemaInfoFromMap extracts schema fields from a map[string]*schema.Schema composite literal
+func ExtractSchemaInfoFromMap(pass *analysis.Pass, smap *ast.CompositeLit, commonSchemaInfo *CommonSchemaInfo) []helper.SchemaFieldInfo {
 	fields := make([]helper.SchemaFieldInfo, 0, len(smap.Elts))
 
 	for i, elt := range smap.Elts {
@@ -270,10 +308,11 @@ func resolveSchemaFromFuncCall(pass *analysis.Pass, call *ast.CallExpr) *schema.
 	}
 
 	// Get the function declaration
+	// TODO: Add search in all pkgs?
 	funcDecl := helper.FindFuncDecl(pass, funcObj)
 	if funcDecl == nil {
 		return nil
 	}
 
-	return extractSchemaPropertiesFromFunc(funcDecl, pass.TypesInfo)
+	return extractSingleSchemaPropertyFromFunc(funcDecl, pass.TypesInfo)
 }

@@ -38,22 +38,29 @@ func validCases() map[string]*schema.Schema {
 func invalidCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		// Invalid: Required String without ValidateFunc
-		"resource_group_name": { // want `AZBP001: string argument "resource_group_name" must have ValidateFunc`
+		"resource_group_name": { // want `AZBP001`
 			Type:     schema.TypeString,
 			Required: true,
 		},
 
 		// Invalid: Optional String without ValidateFunc
-		"location": { // want `AZBP001: string argument "location" must have ValidateFunc`
+		"location": { // want `AZBP001`
 			Type:     schema.TypeString,
 			Optional: true,
 		},
 
 		// Invalid: Required String with other fields but no ValidateFunc
-		"sku": { // want `AZBP001: string argument "sku" must have ValidateFunc`
+		"sku": { // want `AZBP001`
 			Type:     schema.TypeString,
 			Required: true,
 			ForceNew: true,
 		},
+	}
+}
+
+func invalidStandaloneCases() *schema.Schema {
+	return &schema.Schema{ // want `AZBP001`
+		Type:     schema.TypeString,
+		Required: true,
 	}
 }

@@ -2,11 +2,23 @@ package helper
 
 import (
 	"go/ast"
-	"go/types"
 	"go/token"
+	"go/types"
 
+	"github.com/bflad/tfproviderlint/helper/astutils"
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"golang.org/x/tools/go/analysis"
+)
+
+const (
+	TypeNameSchema = "Schema"
+
+	// Package paths for schema types
+	ModuleTerraformPluginSDK = "github.com/hashicorp/terraform-plugin-sdk/v2"
+	PackageModulePathSchema  = "helper/schema"
+
+	// azurerm provider specific package
+	PackagePathPluginSDK = "github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 )
 
 // SchemaFieldInfo represents a field in a Terraform schema with its schema information
@@ -17,34 +29,64 @@ type SchemaFieldInfo struct {
 }
 
 // IsSchemaMap checks if a composite literal is a map[string]*schema.Schema or map[string]*pluginsdk.Schema
-func IsSchemaMap(comp *ast.CompositeLit) bool {
-	// Check if it's a map literal
-	mapType, ok := comp.Type.(*ast.MapType)
-	if !ok {
+func IsSchemaMap(cl *ast.CompositeLit, info *types.Info) bool {
+    // Check if it's a map literal
+    mapType, ok := cl.Type.(*ast.MapType)
+    if !ok {
+        return false
+    }
+
+    // Check if key is string
+    switch k := mapType.Key.(type) {
+    case *ast.Ident:
+        if k.Name != "string" {
+            return false
+        }
+    default:
+        return false
+    }
+
+    return isTypeSchema(info.TypeOf(mapType.Value))
+}
+
+// IsSchemaSchema checks if a composite literal is of type schema.Schema or pluginsdk.Schema
+func IsSchemaSchema(typesInfo *types.Info, cl *ast.CompositeLit) bool {
+	if cl.Type == nil {
 		return false
 	}
 
-	// Check if key is string
-	if ident, ok := mapType.Key.(*ast.Ident); !ok || ident.Name != "string" {
+	t := typesInfo.TypeOf(cl.Type)
+	if t == nil {
 		return false
 	}
 
-	// Check if value is *schema.Schema or *pluginsdk.Schema
-	starExpr, ok := mapType.Value.(*ast.StarExpr)
-	if !ok {
+	return isTypeSchema(t)
+}
+
+// isTypeSchema returns if the type is Schema from helper/schema or pluginsdk package
+func isTypeSchema(t types.Type) bool {
+	switch t := t.(type) {
+	case *types.Alias:
+		return isTypeSchema(types.Unalias(t))
+	case *types.Named:
+		// Check if it's from helper/schema package
+		if astutils.IsModulePackageNamedType(t, ModuleTerraformPluginSDK, PackageModulePathSchema, TypeNameSchema) {
+			return true
+		}
+		// Check if it's from pluginsdk package (azurerm provider specific)
+		if t.Obj().Name() == TypeNameSchema && t.Obj().Pkg() != nil &&
+			t.Obj().Pkg().Path() == PackagePathPluginSDK {
+			return true
+		}
+		return false
+	case *types.Pointer:
+		return isTypeSchema(t.Elem())
+	default:
 		return false
 	}
-
-	selExpr, ok := starExpr.X.(*ast.SelectorExpr)
-	if !ok || selExpr.Sel.Name != "Schema" {
-		return false
-	}
-
-	return true
 }
 
 // IsNestedSchemaMap checks if a schema map CompositeLit is nested within an Elem field
-// It uses position-based checking which is fast with early termination
 func IsNestedSchemaMap(file *ast.File, schemaLit *ast.CompositeLit) bool {
 	var isNested bool
 
@@ -115,21 +157,14 @@ func GetResourceSchemaFromElem(elemKV *ast.KeyValueExpr) *ast.CompositeLit {
 	return nil
 }
 
-// GetNestedSchemaMap extracts the Schema field value from a Resource composite literal
+// GetNestedSchemaMap extracts the Schema field value from a &schema.Resource{...} composite literal
 // Returns nil if the Schema field is not found or is not a composite literal
 func GetNestedSchemaMap(resourceSchema *ast.CompositeLit) *ast.CompositeLit {
-	var nestedSchemaMap *ast.CompositeLit
-	for _, fld := range resourceSchema.Elts {
-		fieldKV, ok := fld.(*ast.KeyValueExpr)
-		if !ok {
-			continue
-		}
-		if ident, ok := fieldKV.Key.(*ast.Ident); ok && ident.Name == "Schema" {
-			if compLit, ok := fieldKV.Value.(*ast.CompositeLit); ok {
-				nestedSchemaMap = compLit
-			}
-			break
-		}
-	}
-	return nestedSchemaMap
+    fields := astutils.CompositeLitFields(resourceSchema)
+    if kvExpr := fields[schema.ResourceFieldSchema]; kvExpr != nil {
+        if compLit, ok := kvExpr.Value.(*ast.CompositeLit); ok {
+            return compLit
+        }
+    }
+    return nil
 }

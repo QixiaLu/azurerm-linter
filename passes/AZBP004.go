@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/helper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -99,8 +100,8 @@ func checkZeroInitPattern(pass *analysis.Pass, inspector *inspector.Inspector) {
 			pos := pass.Fset.Position(assignStmt.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(assignStmt.Pos(),
-					"%s: can simplify with `pointer.From()` since variable is initialized to zero value\n",
-					azbp004Name)
+					"%s: can simplify with `%s` since variable is initialized to zero value\n",
+					azbp004Name, helper.FixedCode("pointer.From()"))
 			}
 		}
 	})

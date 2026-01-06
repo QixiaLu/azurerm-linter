@@ -207,13 +207,12 @@ func CleanupWorktree() {
 // ShouldReport checks if a specific line in a file should be reported
 func (cs *ChangeSet) ShouldReport(filename string, line int) bool {
 	if len(cs.changedLines) == 0 {
-		return true
+		return false
 	}
 
 	relPath := normalizeFilePath(filename)
-
 	if !isServiceFile(relPath) {
-		return true
+		return false
 	}
 
 	if lineMap, exists := cs.changedLines[relPath]; exists {
@@ -226,12 +225,12 @@ func (cs *ChangeSet) ShouldReport(filename string, line int) bool {
 // IsFileChanged checks if a file has any changes
 func (cs *ChangeSet) IsFileChanged(filename string) bool {
 	if len(cs.changedFiles) == 0 {
-		return true
+		return false
 	}
 
 	relPath := normalizeFilePath(filename)
 	if !isServiceFile(relPath) {
-		return true
+		return false
 	}
 
 	return cs.changedFiles[relPath]
