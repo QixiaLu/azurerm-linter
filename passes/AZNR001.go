@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	passesschema "github.com/qixialu/azurerm-linter/passes/schema"
@@ -30,7 +29,6 @@ Schema fields should be ordered as follows:
 
 Special cases:
 - Schemas with 'name' field which is optional are skipped
-- Schemas with optional+computed+ForceNew '*_id' or '*_name' fields are skipped
 - If optional fields appear before required fields, their original order is preserved
   (This happens when some resources have optional fields as part of the resource ID components)
 - Fields that are part of the resource ID (including 'name') require manual verification of their order
@@ -48,23 +46,7 @@ const (
 var aznr001SkipPackages = []string{"_test", "/migration", "/client", "/validate", "/test-data", "/parse", "/models"}
 var aznr001FileSuffix = []string{"_resource.go", "_data_source.go"}
 
-func isComputedOnly(info *schema.SchemaInfo) bool {
-	if info == nil {
-		return false
-	}
-	return info.Schema.Computed && !info.Schema.Optional && !info.Schema.Required
-}
-
-func isSorted(fields []string) bool {
-	for i := 0; i < len(fields)-1; i++ {
-		if fields[i] > fields[i+1] {
-			return false
-		}
-	}
-	return true
-}
-
-func hasOptionalNameWithExactlyOneOf(fields []helper.SchemaFieldInfo) bool {
+func hasOptionalName(fields []helper.SchemaFieldInfo) bool {
 	for _, field := range fields {
 		if field.Name == fieldName && field.SchemaInfo != nil {
 			// Check if it's optional
@@ -175,8 +157,7 @@ func checkAZNR001OrderingIssues(fields []helper.SchemaFieldInfo) ([]string, stri
 	}
 
 	// Skip if name field is optional + ExactlyOneOf (e.g., name/name_regex pattern (image_data_source.go))
-	// Skip if there's alternative id field (e.g., _id with optional + forceNew (cosmosdb_sql_role_definition_resource.go))
-	if hasOptionalNameWithExactlyOneOf(fields) {
+	if hasOptionalName(fields) {
 		return nil, ""
 	}
 
