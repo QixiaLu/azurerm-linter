@@ -19,7 +19,7 @@ For additional information about each check, see the documentation in passes's d
 
 | Check | Description |
 |-------|-------------|
-| AZNR001 | check for Schema field ordering |
+| AZNR001 | check for top-level Schema field ordering |
 
 ### Azure Naming Rule Checks
 
