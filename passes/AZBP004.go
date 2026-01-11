@@ -189,38 +189,38 @@ func isMatchingNilCheckAssignment(ifStmt *ast.IfStmt, varName string) bool {
 
 	checkedExpr := binExpr.X
 
-	// Check if any statement in the body is the assignment we're looking for
-	for _, stmt := range ifStmt.Body.List {
-		// Must be an assignment (not a declaration)
-		assignStmt, ok := stmt.(*ast.AssignStmt)
-		if !ok || len(assignStmt.Lhs) != 1 || len(assignStmt.Rhs) != 1 {
-			continue
-		}
-
-		// Must be = (ASSIGN), not := (DEFINE)
-		if assignStmt.Tok != token.ASSIGN {
-			continue
-		}
-
-		// LHS must be the variable we're tracking
-		lhsIdent, ok := assignStmt.Lhs[0].(*ast.Ident)
-		if !ok || lhsIdent.Name != varName {
-			continue
-		}
-
-		// RHS must be *expr (StarExpr in AST, not UnaryExpr)
-		starExpr, ok := assignStmt.Rhs[0].(*ast.StarExpr)
-		if !ok {
-			continue
-		}
-
-		// The dereferenced expression must match the nil-checked expression
-		if astExprEqual(checkedExpr, starExpr.X) {
-			return true
-		}
+	// Body must have exactly one statement
+	if len(ifStmt.Body.List) != 1 {
+		return false
 	}
 
-	return false
+	stmt := ifStmt.Body.List[0]
+
+	// Must be an assignment (not a declaration)
+	assignStmt, ok := stmt.(*ast.AssignStmt)
+	if !ok || len(assignStmt.Lhs) != 1 || len(assignStmt.Rhs) != 1 {
+		return false
+	}
+
+	// Must be = (ASSIGN), not := (DEFINE)
+	if assignStmt.Tok != token.ASSIGN {
+		return false
+	}
+
+	// LHS must be the variable we're tracking
+	lhsIdent, ok := assignStmt.Lhs[0].(*ast.Ident)
+	if !ok || lhsIdent.Name != varName {
+		return false
+	}
+
+	// RHS must be *expr (StarExpr in AST, not UnaryExpr)
+	starExpr, ok := assignStmt.Rhs[0].(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+
+	// The dereferenced expression must match the nil-checked expression
+	return astExprEqual(checkedExpr, starExpr.X)
 }
 
 // isNilIdent checks if an expression is the nil identifier
