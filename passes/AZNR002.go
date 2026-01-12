@@ -163,7 +163,7 @@ func findHandledPropertiesInUpdate(resource *helper.TypedResourceInfo) map[strin
 
 				// Pattern 2 & 3: Check ResourceData method calls (HasChange/HasChanges/Get)
 				if methodName == "HasChange" || methodName == "HasChanges" || methodName == "Get" {
-					if isResourceDataMethod(sel, resource.TypesInfo) {
+					if helper.IsResourceData(resource.TypesInfo, sel) {
 						if methodName == "Get" && len(node.Args) > 0 {
 							// Pattern 3: Get("property_name")
 							if propName := astutils.ExprStringValue(node.Args[0]); propName != nil {
@@ -211,27 +211,6 @@ func findHandledPropertiesInUpdate(resource *helper.TypedResourceInfo) map[strin
 	return handledProps
 }
 
-// isResourceDataMethod checks if a selector expression is a method call on ResourceData type
-func isResourceDataMethod(sel *ast.SelectorExpr, typesInfo *types.Info) bool {
-	if typesInfo == nil {
-		return false
-	}
-
-	// Get the type of the selector's base expression
-	typ := typesInfo.TypeOf(sel.X)
-	if typ == nil {
-		return false
-	}
-
-	// Check if it's a pointer to ResourceData
-	if ptr, ok := typ.(*types.Pointer); ok {
-		typ = ptr.Elem()
-	}
-
-	// Check the type name contains "ResourceData"
-	return strings.Contains(typ.String(), "ResourceData")
-}
-
 // detectModelPassedToHelper checks if model/config variable is passed to helper functions
 // Returns true if expand/map/flatten functions are called with model variables at TOP LEVEL (not inside if/for blocks)
 // e.g. "automanage_configuration_resource.go": expandConfigurationProfile(model) - should skip
@@ -251,6 +230,15 @@ func detectModelPassedToHelper(body *ast.BlockStmt, modelTypeName string, typesI
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
+			}
+
+			// Skip known SDK methods that don't delegate update logic
+			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+				methodName := sel.Sel.Name
+				// Skip metadata.Decode() - this is serialization, not business logic
+				if methodName == "Decode" && helper.IsTypedSDKResource(typesInfo.TypeOf(sel.X), "ResourceMetaData") {
+					return true
+				}
 			}
 
 			// Check if any argument is the model variable (by type)

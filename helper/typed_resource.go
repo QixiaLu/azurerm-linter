@@ -19,7 +19,6 @@ type TypedResourceInfo struct {
 	ModelName            string
 	ModelStruct          *ast.StructType
 	ArgumentsFunc        *ast.FuncDecl
-	ArgumentsSchemaMap   *ast.CompositeLit // Arguments() returned schema map
 	ArgumentsProperties  []SchemaFieldInfo // Parsed schema fields from Arguments()
 	AttributesFunc       *ast.FuncDecl
 	CreateFunc           *ast.FuncDecl
@@ -259,25 +258,25 @@ func TraceIdentToCompositeLit(typesInfo *types.Info, ident *ast.Ident, funcDecl 
 	return nil
 }
 
-// IsTypeSDKResourceInterface checks if the type is an sdk.Resource* interface
-func IsTypeSDKResourceInterface(t types.Type) bool {
+// IsTypedSDKResource checks if the type is from internal sdk pkg
+func IsTypedSDKResource(t types.Type, name string) bool {
 	switch t := t.(type) {
 	case *types.Named:
-		return IsNamedSDKResourceInterface(t)
+		return IsNamedSDKResource(t, name)
 	case *types.Pointer:
-		return IsTypeSDKResourceInterface(t.Elem())
+		return IsTypedSDKResource(t.Elem(), name)
 	default:
 		return false
 	}
 }
 
-// IsNamedSDKResourceInterface checks if the named type is an sdk.Resource* interface
-func IsNamedSDKResourceInterface(t *types.Named) bool {
+// IsNamedSDKResource checks if the named type is from internal sdk pkg
+func IsNamedSDKResource(t *types.Named, name string) bool {
 	obj := t.Obj()
 	if obj == nil || obj.Pkg() == nil {
 		return false
 	}
 
 	return obj.Pkg().Path() == PackagePathSDK &&
-		strings.HasPrefix(obj.Name(), "Resource")
+		strings.HasPrefix(obj.Name(), name)
 }

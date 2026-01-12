@@ -56,7 +56,7 @@ var TypedResourceInfoAnalyzer = &analysis.Analyzer{
 	Doc:  typedResourceInfoDoc,
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
-		CommonAnalyzer,
+		CompleteSchemaAnalyzer,
 	},
 	Run:        runTypedResourceInfo,
 	ResultType: reflect.TypeOf([]*helper.TypedResourceInfo{}),
@@ -67,7 +67,7 @@ func runTypedResourceInfo(pass *analysis.Pass) (interface{}, error) {
 	if !ok {
 		return nil, nil
 	}
-	commonSchemaInfo, ok := pass.ResultOf[CommonAnalyzer].(*CommonSchemaInfo)
+	completeSchemaInfo, ok := pass.ResultOf[CompleteSchemaAnalyzer].(*CompleteSchemaInfo)
 	if !ok {
 		return nil, nil
 	}
@@ -134,8 +134,7 @@ func runTypedResourceInfo(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				resourceInfo.ArgumentsSchemaMap = schemaMap
-				resourceInfo.ArgumentsProperties = ExtractSchemaInfoFromMap(pass, schemaMap, commonSchemaInfo)
+				resourceInfo.ArgumentsProperties = completeSchemaInfo.SchemaFields[schemaMap.Pos()]
 
 				result = append(result, resourceInfo)
 			}
@@ -153,7 +152,7 @@ func isSDKResourceInterface(pass *analysis.Pass, expr ast.Expr) bool {
 	}
 
 	typ := pass.TypesInfo.TypeOf(selExpr)
-	if typ != nil && helper.IsTypeSDKResourceInterface(typ) {
+	if typ != nil && helper.IsTypedSDKResource(typ, "Resource") {
 		return true
 	}
 

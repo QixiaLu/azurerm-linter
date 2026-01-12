@@ -36,7 +36,7 @@ var AZNR001Analyzer = &analysis.Analyzer{
 	Name:     aznr001Name,
 	Doc:      AZNR001Doc,
 	Run:      runAZNR001,
-	Requires: []*analysis.Analyzer{inspect.Analyzer, schema.CommonAnalyzer},
+	Requires: []*analysis.Analyzer{inspect.Analyzer, schema.CompleteSchemaAnalyzer},
 }
 
 func runAZNR001(pass *analysis.Pass) (interface{}, error) {
@@ -52,7 +52,7 @@ func runAZNR001(pass *analysis.Pass) (interface{}, error) {
 	if !ok {
 		return nil, nil
 	}
-	commonSchemaInfo, ok := pass.ResultOf[schema.CommonAnalyzer].(*schema.CommonSchemaInfo)
+	completeSchemaInfo, ok := pass.ResultOf[schema.CompleteSchemaAnalyzer].(*schema.CompleteSchemaInfo)
 	if !ok {
 		return nil, nil
 	}
@@ -87,7 +87,7 @@ func runAZNR001(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Extract schema fields
-		fields := schema.ExtractSchemaInfoFromMap(pass, comp, commonSchemaInfo)
+		fields := completeSchemaInfo.SchemaFields[comp.Pos()]
 		if len(fields) == 0 {
 			return
 		}
