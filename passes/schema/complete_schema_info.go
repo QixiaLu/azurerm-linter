@@ -106,7 +106,6 @@ func runComplete(pass *analysis.Pass) (interface{}, error) {
 		pos := comp.Pos()
 		fields := extractCompleteSchemaInfoFromMap(pass, comp, commonSchemaInfo)
 		completeSchemaInfo.SchemaFields[pos] = fields
-		return
 	})
 
 	return completeSchemaInfo, nil
