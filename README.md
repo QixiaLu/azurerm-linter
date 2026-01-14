@@ -17,12 +17,10 @@ For additional information about each check, see the documentation in passes's d
 
 ### Azure New Resource Checks
 
-**Note**: When git filter is on, following analyzers only run on newly created resources/data sources
-
-| Check | Description |
-|-------|-------------|
-| AZNR001 | check for Schema field ordering |
-| AZNR002 | check for top-level updatable arguments are included in Update func |
+| Check | Description | Comments |
+|-------|-------------|----------|
+| AZNR001 | check for Schema field ordering | When git filter is on, this analyzer only run on newly created resources/data sources |
+| AZNR002 | check for top-level updatable arguments are included in Update func |This analyzer currently only runes on typed resource|
 
 ### Azure Naming Rule Checks
 

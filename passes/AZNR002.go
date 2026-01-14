@@ -21,7 +21,7 @@ const AZNR002Doc = `check that top-level updatable properties are handled in Upd
 The AZNR002 analyzer checks that all updatable properties (not marked as ForceNew)
 are properly handled in the Update function for typed resources.
 
-If git filter enabled, this rule only applies on newly created typed resource.
+If git filter enabled, this rule only applies if schema is changed.
 
 This analyzer will be skipped if a helper function is utilized to handle the update.
 
@@ -87,12 +87,6 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 	for _, resource := range allResources {
 		// Filter: must have Update method
 		if resource.UpdateFunc == nil {
-			continue
-		}
-
-		// Filter: git filter - only check new files
-		fileName := pass.Fset.Position(resource.UpdateFunc.Pos()).Filename
-		if !loader.IsNewFile(fileName) {
 			continue
 		}
 
@@ -288,10 +282,9 @@ func detectModelPassedToHelper(body *ast.BlockStmt, modelTypeName string, typesI
 // reportMissingProperties reports properties that are updatable but not handled
 func reportMissingProperties(pass *analysis.Pass, resource *helper.TypedResourceInfo, updatableProps map[string]string, handledProps map[string]bool) {
 	var missingProps []string
-
-	for propName := range updatableProps {
-		if !handledProps[propName] {
-			missingProps = append(missingProps, propName)
+	for tfSchemaName := range updatableProps {
+		if !handledProps[tfSchemaName] {
+			missingProps = append(missingProps, tfSchemaName)
 		}
 	}
 
@@ -307,12 +300,45 @@ func reportMissingProperties(pass *analysis.Pass, resource *helper.TypedResource
 	// Sort for consistent output
 	sort.Strings(missingProps)
 
-	// Report at the Update function
-	if resource.UpdateFunc != nil {
+	// Report each missing property at its definition location
+	for _, tfSchemaName := range missingProps {
+		var fieldInfo *helper.SchemaFieldInfo
+		for i := range resource.ArgumentsProperties {
+			if resource.ArgumentsProperties[i].Name == tfSchemaName {
+				fieldInfo = &resource.ArgumentsProperties[i]
+				break
+			}
+		}
+		if fieldInfo == nil {
+			continue
+		}
+
+		if fieldInfo.Pos != token.NoPos {
+			position := pass.Fset.Position(fieldInfo.Pos)
+			// Check if position is valid (Pos is in current pass's FileSet)
+			if position.IsValid() {
+				if !loader.ShouldReport(position.Filename, position.Line) {
+					continue
+				}
+				pass.Reportf(fieldInfo.Pos,
+					"%s: updatable property `%s` is not handled in Update function. If non-updatable, mark as %s in Arguments() schema\n",
+					aznr002Name,
+					helper.IssueLine(tfSchemaName),
+					helper.FixedCode("ForceNew: true"))
+				continue
+			}
+		}
+
+		// Fallback to Update function position (for cross-package schemas)
+		if fieldInfo.Position.IsValid() {
+			if !loader.ShouldReport(fieldInfo.Position.Filename, fieldInfo.Position.Line) {
+				continue
+			}
+		}
 		pass.Reportf(resource.UpdateFunc.Pos(),
-			"%s: resource has updatable properties not handled in Update function: `%s`. If they are non-updatable, mark them as %s in Arguments() schema\n",
+			"%s: updatable property `%s` is not handled in Update function. If non-updatable, mark as %s in Arguments() schema\n",
 			aznr002Name,
-			helper.IssueLine(strings.Join(missingProps, ", ")),
+			helper.IssueLine(tfSchemaName),
 			helper.FixedCode("ForceNew: true"))
 	}
 }
