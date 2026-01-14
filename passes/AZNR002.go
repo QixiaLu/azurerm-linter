@@ -90,6 +90,12 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
+		// Apply filename filtering
+		fileName := pass.Fset.Position(resource.UpdateFunc.Pos()).Filename
+		if !loader.IsFileChanged(fileName) {
+			continue
+		}
+
 		// Filter: must have extracted ArgumentsProperties
 		if len(resource.ArgumentsProperties) == 0 {
 			pos := pass.Fset.Position(resource.UpdateFunc.Pos())
@@ -122,7 +128,7 @@ func extractUpdatableProperties(resource *helper.TypedResourceInfo) map[string]s
 	for _, field := range resource.ArgumentsProperties {
 		if field.SchemaInfo != nil &&
 			!field.SchemaInfo.Schema.Computed &&
-			!field.SchemaInfo.Schema.ForceNew {
+			!field.SchemaInfo.Schema.ForceNew && !field.SchemaInfo.DeclaresField("WriteOnly") {
 			updatableProps[field.Name] = tfSchemaToModel[field.Name]
 		}
 	}
@@ -158,17 +164,9 @@ func findHandledPropertiesInUpdate(resource *helper.TypedResourceInfo) map[strin
 				// Pattern 2 & 3: Check ResourceData method calls (HasChange/HasChanges/Get)
 				if methodName == "HasChange" || methodName == "HasChanges" || methodName == "Get" {
 					if helper.IsResourceData(resource.TypesInfo, sel) {
-						if methodName == "Get" && len(node.Args) > 0 {
-							// Pattern 3: Get("property_name")
-							if propName := astutils.ExprStringValue(node.Args[0]); propName != nil {
+						for _, arg := range node.Args {
+							if propName := astutils.ExprStringValue(arg); propName != nil {
 								handledProps[*propName] = true
-							}
-						} else if methodName == "HasChange" || methodName == "HasChanges" {
-							// Pattern 2: HasChange("prop") or HasChanges("prop1", "prop2")
-							for _, arg := range node.Args {
-								if propName := astutils.ExprStringValue(arg); propName != nil {
-									handledProps[*propName] = true
-								}
 							}
 						}
 					}
