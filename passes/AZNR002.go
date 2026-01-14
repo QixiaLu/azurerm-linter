@@ -80,11 +80,11 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	allResources, ok := pass.ResultOf[schema.TypedResourceInfoAnalyzer].([]*helper.TypedResourceInfo)
+	allTypedResources, ok := pass.ResultOf[schema.TypedResourceInfoAnalyzer].([]*helper.TypedResourceInfo)
 	if !ok {
 		return nil, nil
 	}
-	for _, resource := range allResources {
+	for _, resource := range allTypedResources {
 		// Filter: must have Update method
 		if resource.UpdateFunc == nil {
 			continue
@@ -159,15 +159,11 @@ func findHandledPropertiesInUpdate(resource *helper.TypedResourceInfo) map[strin
 		switch node := n.(type) {
 		case *ast.CallExpr:
 			if sel, ok := node.Fun.(*ast.SelectorExpr); ok {
-				methodName := sel.Sel.Name
-
 				// Pattern 2 & 3: Check ResourceData method calls (HasChange/HasChanges/Get)
-				if methodName == "HasChange" || methodName == "HasChanges" || methodName == "Get" {
-					if helper.IsResourceData(resource.TypesInfo, sel) {
-						for _, arg := range node.Args {
-							if propName := astutils.ExprStringValue(arg); propName != nil {
-								handledProps[*propName] = true
-							}
+				if helper.IsResourceData(resource.TypesInfo, sel) {
+					for _, arg := range node.Args {
+						if propName := astutils.ExprStringValue(arg); propName != nil {
+							handledProps[*propName] = true
 						}
 					}
 				}
