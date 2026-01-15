@@ -90,7 +90,7 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 
 		// Filter: must have extracted ArgumentsProperties
 		if len(resource.ArgumentsProperties) == 0 {
-			pos := pass.Fset.Position(resource.UpdateFunc.Pos())
+			pos := pass.Fset.Position(resource.ArgumentsFunc.Pos())
 			log.Printf("%s:%d: %s: Skipping resource %q - failed to extract schema properties",
 				pos.Filename, pos.Line, aznr002Name, resource.ResourceTypeName)
 			continue
