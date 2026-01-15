@@ -223,9 +223,6 @@
 //
 // Reference: https://github.com/hashicorp/terraform-provider-azurerm/blob/main/contributing/topics/guide-new-resource.md
 //
-// When git filter is enabled, it only validates on newly created files.
-// This analyzer will be skipped if a helper function is utilized to handle the update.
-//
 // Flagged:
 //
 //	// In Arguments()
