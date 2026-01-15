@@ -23,8 +23,6 @@ are properly handled in the Update function for typed resources.
 
 If git filter enabled, this rule only applies if schema is changed.
 
-This analyzer will be skipped if a helper function is utilized to handle the update.
-
 For typed resources, this means checking for metadata.ResourceData.HasChange("property_name").
 
 Note: This analyzer supports Arguments() functions that:
@@ -90,12 +88,6 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		// Apply filename filtering
-		fileName := pass.Fset.Position(resource.UpdateFunc.Pos()).Filename
-		if !loader.IsFileChanged(fileName) {
-			continue
-		}
-
 		// Filter: must have extracted ArgumentsProperties
 		if len(resource.ArgumentsProperties) == 0 {
 			pos := pass.Fset.Position(resource.UpdateFunc.Pos())
@@ -109,7 +101,7 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		handledProps := findHandledPropertiesInUpdate(resource)
+		handledProps := findHandledPropertiesInUpdate(pass, resource)
 		reportMissingProperties(pass, resource, updatableProps, handledProps)
 	}
 
@@ -128,7 +120,7 @@ func extractUpdatableProperties(resource *helper.TypedResourceInfo) map[string]s
 	for _, field := range resource.ArgumentsProperties {
 		if field.SchemaInfo != nil &&
 			!field.SchemaInfo.Schema.Computed &&
-			!field.SchemaInfo.Schema.ForceNew && !field.SchemaInfo.DeclaresField("WriteOnly") {
+			!field.SchemaInfo.Schema.ForceNew {
 			updatableProps[field.Name] = tfSchemaToModel[field.Name]
 		}
 	}
@@ -137,7 +129,7 @@ func extractUpdatableProperties(resource *helper.TypedResourceInfo) map[string]s
 }
 
 // findHandledPropertiesInUpdate finds all properties handled in Update function
-func findHandledPropertiesInUpdate(resource *helper.TypedResourceInfo) map[string]bool {
+func findHandledPropertiesInUpdate(pass *analysis.Pass, resource *helper.TypedResourceInfo) map[string]bool {
 	handledProps := make(map[string]bool)
 
 	updateFuncBody := resource.UpdateFuncBody
@@ -148,129 +140,133 @@ func findHandledPropertiesInUpdate(resource *helper.TypedResourceInfo) map[strin
 	// Get the model struct type name
 	modelTypeName := resource.ModelName
 
-	// Pattern 1: Check if model/config is passed to helper functions
-	// If detected, skip this resource as properties are likely handled in helper
-	if detectModelPassedToHelper(updateFuncBody, modelTypeName, resource.TypesInfo) {
-		return handledProps
-	}
+	// Pattern 1: Trace into helper functions that receive model or metadata (recursive)
+	traceHelperCalls(pass, updateFuncBody, modelTypeName, resource, handledProps, make(map[*ast.FuncDecl]bool))
 
-	// Single pass: inspect all nodes and check both patterns
-	ast.Inspect(updateFuncBody, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.CallExpr:
-			if sel, ok := node.Fun.(*ast.SelectorExpr); ok {
-				// Pattern 2 & 3: Check ResourceData method calls (HasChange/HasChanges/Get)
-				if helper.IsResourceData(resource.TypesInfo, sel) {
-					for _, arg := range node.Args {
-						if propName := astutils.ExprStringValue(arg); propName != nil {
-							handledProps[*propName] = true
-						}
-					}
-				}
-			}
+	// Pattern 2: Direct model field access in Update body (config.Field, state.Field)
+	traceModelFieldAccess(updateFuncBody, modelTypeName, resource, handledProps)
 
-		case *ast.SelectorExpr:
-			// Pattern 4: state.FieldName or config.FieldName
-			// Check if the field name matches any of our model fields
-			fieldName := node.Sel.Name
-			if tfschemaName, ok := resource.ModelFieldToTFSchema[fieldName]; ok {
-				// This is a field from our model struct being accessed
-				// Now verify the base is likely a model variable by checking with TypesInfo
-				if resource.TypesInfo != nil {
-					if typ := resource.TypesInfo.TypeOf(node.X); typ != nil {
-						// Remove pointer if present
-						if ptr, ok := typ.(*types.Pointer); ok {
-							typ = ptr.Elem()
-						}
-						// Check if it's a named type matching our model
-						if named, ok := typ.(*types.Named); ok {
-							if obj := named.Obj(); obj != nil && obj.Name() == modelTypeName {
-								handledProps[tfschemaName] = true
-							}
-						}
-					}
-				}
-			}
-		}
-
-		return true
-	})
+	// Pattern 3: ResourceData method calls (HasChange/HasChanges/Get)
+	traceResourceDataCalls(updateFuncBody, resource, handledProps)
 
 	return handledProps
 }
 
-// detectModelPassedToHelper checks if model/config variable is passed to helper functions
-// Returns true if expand/map/flatten functions are called with model variables at TOP LEVEL (not inside if/for blocks)
-// e.g. "automanage_configuration_resource.go": expandConfigurationProfile(model) - should skip
-// counter-example "spring_cloud_gateway_resource.go": if HasChange { expandGatewayResponseCacheProperties(model) } - should NOT skip
-func detectModelPassedToHelper(body *ast.BlockStmt, modelTypeName string, typesInfo *types.Info) bool {
-	// Only check top-level statements in the function body
-	for _, stmt := range body.List {
-		// Skip if statement, for statement, switch statement - these are conditional
-		switch stmt.(type) {
-		case *ast.IfStmt, *ast.ForStmt, *ast.SwitchStmt, *ast.RangeStmt:
-			continue
+// traceHelperCalls recursively traces into helper functions that receive model or metadata as argument
+// Uses type-based detection to find relevant variables
+// visited tracks already-visited functions to prevent infinite recursion
+func traceHelperCalls(pass *analysis.Pass, body *ast.BlockStmt, modelTypeName string, resource *helper.TypedResourceInfo, handledProps map[string]bool, visited map[*ast.FuncDecl]bool) {
+	if body == nil {
+		return
+	}
+	typesInfo := resource.TypesInfo
+
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
 		}
 
-		found := false
-		// Check assignments and expression statements at top level
-		ast.Inspect(stmt, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
+		// Skip metadata.Decode()
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+			if sel.Sel.Name == "Decode" && helper.IsTypedSDKResource(typesInfo.TypeOf(sel.X), "ResourceMetaData") {
 				return true
 			}
+		}
 
-			// Skip known SDK methods that don't delegate update logic
-			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-				methodName := sel.Sel.Name
-				// Skip metadata.Decode() - this is serialization, not business logic
-				if methodName == "Decode" && helper.IsTypedSDKResource(typesInfo.TypeOf(sel.X), "ResourceMetaData") {
-					return true
-				}
+		// Check if model or metadata is passed as an argument
+		shouldTrace := false
+		for _, arg := range call.Args {
+			if helper.IsModelType(arg, modelTypeName, typesInfo) || helper.IsTypedSDKResource(typesInfo.TypeOf(arg), "ResourceMetaData") {
+				shouldTrace = true
+				break
 			}
-
-			// Check if any argument is the model variable (by type)
-			for _, arg := range call.Args {
-				var argIdent *ast.Ident
-				// Handle: model, &model, *model
-				switch a := arg.(type) {
-				case *ast.Ident:
-					argIdent = a
-				case *ast.UnaryExpr:
-					if a.Op == token.AND || a.Op == token.MUL {
-						if ident, ok := a.X.(*ast.Ident); ok {
-							argIdent = ident
-						}
-					}
-				}
-
-				if argIdent != nil {
-					// Use TypesInfo to check if this variable is of model type
-					if typ := typesInfo.TypeOf(argIdent); typ != nil {
-						// Remove pointer if present to get underlying type
-						if ptr, ok := typ.(*types.Pointer); ok {
-							typ = ptr.Elem()
-						}
-						// Check if it's a named type matching our model
-						if named, ok := typ.(*types.Named); ok {
-							if obj := named.Obj(); obj != nil && obj.Name() == modelTypeName {
-								found = true
-								return false
-							}
-						}
-					}
-				}
-			}
-
-			return true
-		})
-
-		if found {
+		}
+		if !shouldTrace {
 			return true
 		}
+
+		// Resolve and trace into the helper function
+		funcDecl := resolveFuncDecl(pass, call)
+		if funcDecl == nil || funcDecl.Body == nil || visited[funcDecl] {
+			return true
+		}
+		visited[funcDecl] = true
+
+		// Trace all patterns in helper body
+		traceModelFieldAccess(funcDecl.Body, modelTypeName, resource, handledProps)
+		traceResourceDataCalls(funcDecl.Body, resource, handledProps)
+		traceHelperCalls(pass, funcDecl.Body, modelTypeName, resource, handledProps, visited)
+
+		return true
+	})
+}
+
+// resolveFuncDecl resolves a CallExpr to its FuncDecl (same package only)
+func resolveFuncDecl(pass *analysis.Pass, call *ast.CallExpr) *ast.FuncDecl {
+	var funcObj types.Object
+	switch fun := call.Fun.(type) {
+	case *ast.Ident:
+		funcObj = pass.TypesInfo.Uses[fun]
+	case *ast.SelectorExpr:
+		funcObj = pass.TypesInfo.Uses[fun.Sel]
+	}
+	if funcObj == nil {
+		return nil
+	}
+	return helper.FindFuncDecl(pass, funcObj)
+}
+
+// traceModelFieldAccess finds model.Field accesses in a function body using type detection
+func traceModelFieldAccess(body *ast.BlockStmt, modelTypeName string, resource *helper.TypedResourceInfo, handledProps map[string]bool) {
+	if body == nil || resource.TypesInfo == nil {
+		return
 	}
 
-	return false
+	ast.Inspect(body, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		// Check if field name maps to a tfschema property
+		tfschemaName, ok := resource.ModelFieldToTFSchema[sel.Sel.Name]
+		if !ok {
+			return true
+		}
+
+		// Verify the base is a model variable by type
+		if helper.IsModelType(sel.X, modelTypeName, resource.TypesInfo) {
+			handledProps[tfschemaName] = true
+		}
+		return true
+	})
+}
+
+// traceResourceDataCalls finds ResourceData method calls (HasChange/HasChanges/Get) in a function body
+func traceResourceDataCalls(body *ast.BlockStmt, resource *helper.TypedResourceInfo, handledProps map[string]bool) {
+	if body == nil {
+		return
+	}
+
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if helper.IsResourceData(resource.TypesInfo, sel) {
+			for _, arg := range call.Args {
+				if propName := astutils.ExprStringValue(arg); propName != nil {
+					handledProps[*propName] = true
+				}
+			}
+		}
+		return true
+	})
 }
 
 // reportMissingProperties reports properties that are updatable but not handled
@@ -283,7 +279,7 @@ func reportMissingProperties(pass *analysis.Pass, resource *helper.TypedResource
 	}
 
 	if len(missingProps) == 0 || len(handledProps) == 0 {
-		if len(handledProps) == 0 {
+		if len(handledProps) == 0 && len(updatableProps) != 0 {
 			pos := pass.Fset.Position(resource.UpdateFunc.Pos())
 			log.Printf("%s:%d: %s: Skipping resource %q - update likely delegated to helper function",
 				pos.Filename, pos.Line, aznr002Name, resource.ResourceTypeName)

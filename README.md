@@ -20,7 +20,7 @@ For additional information about each check, see the documentation in passes's d
 | Check | Description | Comments |
 |-------|-------------|----------|
 | AZNR001 | check for Schema field ordering | When git filter is on, this analyzer only run on newly created resources/data sources |
-| AZNR002 | check for top-level updatable arguments are included in Update func |This analyzer currently only runes on typed resource|
+| AZNR002 | check for top-level updatable arguments are included in Update func |This analyzer currently only runs on typed resource|
 
 ### Azure Naming Rule Checks
 

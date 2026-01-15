@@ -127,6 +127,10 @@ func runTypedResourceInfo(pass *analysis.Pass) (interface{}, error) {
 
 				resourceInfo.ArgumentsProperties = completeSchemaInfo.SchemaFields[schemaMap.Pos()]
 
+				if resourceInfo.UpdateFunc != nil {
+					resourceInfo.UpdateFuncBody = helper.GetFuncBody(pass, resourceInfo.UpdateFunc)
+				}
+
 				result = append(result, resourceInfo)
 			}
 		}
