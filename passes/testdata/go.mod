@@ -3,9 +3,9 @@ module testdata
 go 1.24.11
 
 require (
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.34.0
 	github.com/hashicorp/go-azure-helpers/lang/pointer v0.0.0
 	github.com/hashicorp/go-azure-sdk/resource-manager/compute/2024-03-01/virtualmachines v0.0.0
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.34.0
 )
 
 require (

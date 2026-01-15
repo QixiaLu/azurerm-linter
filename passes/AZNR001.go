@@ -7,7 +7,7 @@ import (
 
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
-	passesschema "github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/passes/schema"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -50,7 +50,7 @@ var AZNR001Analyzer = &analysis.Analyzer{
 	Name:     aznr001Name,
 	Doc:      AZNR001Doc,
 	Run:      runAZNR001,
-	Requires: []*analysis.Analyzer{inspect.Analyzer, passesschema.CommonAnalyzer},
+	Requires: []*analysis.Analyzer{inspect.Analyzer, schema.CompleteSchemaAnalyzer},
 }
 
 func runAZNR001(pass *analysis.Pass) (interface{}, error) {
@@ -66,7 +66,7 @@ func runAZNR001(pass *analysis.Pass) (interface{}, error) {
 	if !ok {
 		return nil, nil
 	}
-	commonSchemaInfo, ok := pass.ResultOf[passesschema.CommonAnalyzer].(*passesschema.CommonSchemaInfo)
+	completeSchemaInfo, ok := pass.ResultOf[schema.CompleteSchemaAnalyzer].(*schema.CompleteSchemaInfo)
 	if !ok {
 		return nil, nil
 	}
@@ -97,12 +97,12 @@ func runAZNR001(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Check if it's a schema map
-		if !helper.IsSchemaMap(comp) {
+		if !helper.IsSchemaMap(comp, pass.TypesInfo) {
 			return
 		}
 
 		// Extract schema fields
-		fields := passesschema.ExtractFromCompositeLit(pass, comp, commonSchemaInfo)
+		fields := completeSchemaInfo.SchemaFields[comp.Pos()]
 		if len(fields) == 0 {
 			return
 		}

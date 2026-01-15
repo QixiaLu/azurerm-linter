@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/passes"
 	"golang.org/x/tools/go/analysis/checker"
@@ -94,6 +95,9 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 	if hasLoadErrors {
 		return ExitError
 	}
+
+	// Provide loaded packages to analyzers for cross-package schema resolution
+	helper.SetGlobalPackages(pkgs)
 
 	log.Printf("Running analysis...")
 	graph, err := checker.Analyze(passes.AllChecks, pkgs, nil)

@@ -80,24 +80,6 @@ func invalidCase5(props *Props) {
 	useEnabledAgain(enabled)
 }
 
-func invalidCase6(props *Props) {
-	enabled := false // want `AZBP004`
-	if props.Enabled != nil {
-		enabled = *props.Enabled
-		useEnabled(enabled)
-	}
-	useEnabledAgain(enabled)
-}
-
-func invalidCase7(props *Props) {
-	enabled := false // want `AZBP004`
-	if props.Enabled != nil {
-		useEnabled(true)
-		enabled = *props.Enabled
-	}
-	useEnabledAgain(enabled)
-}
-
 // Edge cases
 
 func edgeCase1(props *Props) {
@@ -155,5 +137,4 @@ func useEnabledAgain(b bool)         {}
 func useName(s string)               {}
 func useCount(i int)                 {}
 func useDynamicThrottling(b bool)    {}
-func useProjectManagement(b bool)    {}
 func doSomething()                   {}

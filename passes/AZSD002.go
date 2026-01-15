@@ -74,7 +74,6 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 
 	for schemaLit, cached := range schemaInfoCache {
 		schemaInfo := cached.Info
-		fieldName := cached.PropertyName
 
 		// Skip Computed fields
 		if cached.Info.Schema.Computed {
@@ -146,9 +145,15 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 		if !hasRequiredField && !hasAtLeastOneOf && optionalFieldsCount >= 2 {
 			pos := pass.Fset.Position(schemaLit.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(schemaLit.Pos(),
-					"%s: TypeList field %q has %s, %s must be set on the optional fields to ensure at least one is specified.\n",
-					azsd002Name, fieldName, helper.IssueLine("all optional nested fields"), helper.FixedCode("`AtLeastOneOf`"))
+				if propertyName := cached.PropertyName; propertyName != "" {
+					pass.Reportf(schemaLit.Pos(),
+						"%s: TypeList field `%s` has %s, %s must be set on the optional fields to ensure at least one is specified.\n",
+						azsd002Name, propertyName, helper.IssueLine("all optional nested fields"), helper.FixedCode("`AtLeastOneOf`"))
+				} else {
+					pass.Reportf(schemaLit.Pos(),
+						"%s: TypeList field has %s, %s must be set on the optional fields to ensure at least one is specified.\n",
+						azsd002Name, helper.IssueLine("all optional nested fields"), helper.FixedCode("`AtLeastOneOf`"))
+				}
 			}
 		}
 	}
