@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/helper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -99,8 +100,8 @@ func checkZeroInitPattern(pass *analysis.Pass, inspector *inspector.Inspector) {
 			pos := pass.Fset.Position(assignStmt.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(assignStmt.Pos(),
-					"%s: can simplify with `pointer.From()` since variable is initialized to zero value\n",
-					azbp004Name)
+					"%s: can simplify with `%s` since variable is initialized to zero value\n",
+					azbp004Name, helper.FixedCode("pointer.From()"))
 			}
 		}
 	})
@@ -188,38 +189,38 @@ func isMatchingNilCheckAssignment(ifStmt *ast.IfStmt, varName string) bool {
 
 	checkedExpr := binExpr.X
 
-	// Check if any statement in the body is the assignment we're looking for
-	for _, stmt := range ifStmt.Body.List {
-		// Must be an assignment (not a declaration)
-		assignStmt, ok := stmt.(*ast.AssignStmt)
-		if !ok || len(assignStmt.Lhs) != 1 || len(assignStmt.Rhs) != 1 {
-			continue
-		}
-
-		// Must be = (ASSIGN), not := (DEFINE)
-		if assignStmt.Tok != token.ASSIGN {
-			continue
-		}
-
-		// LHS must be the variable we're tracking
-		lhsIdent, ok := assignStmt.Lhs[0].(*ast.Ident)
-		if !ok || lhsIdent.Name != varName {
-			continue
-		}
-
-		// RHS must be *expr (StarExpr in AST, not UnaryExpr)
-		starExpr, ok := assignStmt.Rhs[0].(*ast.StarExpr)
-		if !ok {
-			continue
-		}
-
-		// The dereferenced expression must match the nil-checked expression
-		if astExprEqual(checkedExpr, starExpr.X) {
-			return true
-		}
+	// Body must have exactly one statement
+	if len(ifStmt.Body.List) != 1 {
+		return false
 	}
 
-	return false
+	stmt := ifStmt.Body.List[0]
+
+	// Must be an assignment (not a declaration)
+	assignStmt, ok := stmt.(*ast.AssignStmt)
+	if !ok || len(assignStmt.Lhs) != 1 || len(assignStmt.Rhs) != 1 {
+		return false
+	}
+
+	// Must be = (ASSIGN), not := (DEFINE)
+	if assignStmt.Tok != token.ASSIGN {
+		return false
+	}
+
+	// LHS must be the variable we're tracking
+	lhsIdent, ok := assignStmt.Lhs[0].(*ast.Ident)
+	if !ok || lhsIdent.Name != varName {
+		return false
+	}
+
+	// RHS must be *expr (StarExpr in AST, not UnaryExpr)
+	starExpr, ok := assignStmt.Rhs[0].(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+
+	// The dereferenced expression must match the nil-checked expression
+	return astExprEqual(checkedExpr, starExpr.X)
 }
 
 // isNilIdent checks if an expression is the nil identifier

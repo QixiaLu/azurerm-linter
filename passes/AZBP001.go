@@ -4,6 +4,7 @@ import (
 	"go/ast"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
+	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
 	"golang.org/x/tools/go/analysis"
@@ -50,7 +51,6 @@ func runAZBP001(pass *analysis.Pass) (interface{}, error) {
 
 	for schemaLit, cached := range schemaInfoCache {
 		schemaInfo := cached.Info
-		propertyName := cached.PropertyName
 
 		// Type check: only check String fields
 		if !schemaInfo.IsType(schema.SchemaValueTypeString) {
@@ -68,8 +68,13 @@ func runAZBP001(pass *analysis.Pass) (interface{}, error) {
 		if !hasValidation {
 			pos := pass.Fset.Position(schemaLit.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(schemaLit.Pos(), "%s: string argument %q must have ValidateFunc\n",
-					azbp001Name, propertyName)
+				if propertyName := cached.PropertyName; propertyName != "" {
+					pass.Reportf(schemaLit.Pos(), "%s: string argument `%s` %s\n",
+						azbp001Name, propertyName, helper.FixedCode("must have ValidateFunc"))
+				} else {
+					pass.Reportf(schemaLit.Pos(), "%s: string argument %s\n",
+						azbp001Name, helper.FixedCode("must have ValidateFunc"))
+				}
 			}
 		}
 	}

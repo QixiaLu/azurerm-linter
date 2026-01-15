@@ -133,11 +133,10 @@ func runAZRE001(pass *analysis.Pass) (interface{}, error) {
 		if !strings.Contains(formatStr, "%") {
 			// Reuse pos from earlier to avoid duplicate Position lookup
 			if loader.ShouldReport(filename, pos.Line) {
-				pass.Reportf(call.Pos(), "%s: fixed error strings should use %s instead of %s: %s\n",
+				pass.Reportf(call.Pos(), "%s: fixed error strings should use %s instead of %s\n",
 					azre001Name,
 					helper.FixedCode("errors.New()"),
-					helper.IssueLine("fmt.Errorf()"),
-					helper.IssueLine(formatStr))
+					helper.IssueLine("fmt.Errorf()"))
 			}
 		}
 	})

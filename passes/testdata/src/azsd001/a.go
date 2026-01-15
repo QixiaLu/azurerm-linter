@@ -95,3 +95,19 @@ func invalidCases() map[string]*schema.Schema {
 		},
 	}
 }
+
+func invalidStandaloneCases() *schema.Schema {
+	return &schema.Schema{ // want `AZSD001`
+		Type:     schema.TypeList,
+		Optional: true,
+		MaxItems: 1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"value": {
+					Type:     schema.TypeString,
+					Required: true,
+				},
+			},
+		},
+	}
+}

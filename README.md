@@ -13,13 +13,14 @@ For additional information about each check, see the documentation in passes's d
 | AZBP001 | check for all String arguments have `ValidateFunc` |
 | AZBP002 | check for `Optional+Computed` fields follow conventions |
 | AZBP003 | check for `pointer.ToEnum` to convert Enum type instead of explicitly type conversion |
-| AZBP004 | check for zero-value initialization followed by nil check and pointer dereference that should use `pointer.From` | 
+| AZBP004 | check for zero-value initialization followed by nil check and pointer dereference that should use `pointer.From` |
 
 ### Azure New Resource Checks
 
-| Check | Description |
-|-------|-------------|
-| AZNR001 | check for Schema field ordering |
+| Check | Description | Comments |
+|-------|-------------|----------|
+| AZNR001 | check for Schema field ordering | When git filter is on, this analyzer only run on newly created resources/data sources |
+| AZNR002 | check for top-level updatable arguments are included in Update func |This analyzer currently only runs on typed resource|
 
 ### Azure Naming Rule Checks
 
@@ -27,7 +28,7 @@ For additional information about each check, see the documentation in passes's d
 |-------|-------------|
 | AZRN001 | check for percentage properties use `_percentage` suffix instead of `_in_percent` |
 
-### Azure Resource Error Checks
+### Azure Reference Error Checks
 
 | Check | Description |
 |-------|-------------|
@@ -151,3 +152,16 @@ Actual order:
 
 2026/01/05 10:40:40 Found 9 issue(s)
 ```
+
+## Limitations
+
+Schema-related checks (e.g., AZNR002, AZSD001, AZSD002) analyze schemas defined as `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals returned from functions. This includes:
+- Direct returns: `return &map[string]*pluginsdk.Schema{...}`
+- Variable returns: `output := map[string]*pluginsdk.Schema{...}; return output` (captures initial `:=` definition only, ignoring subsequent `=` modifications)
+- Inline schema definitions: `return &pluginsdk.Schema{...}`
+- Cross-package function calls: Only `commonschema` package is currently supported (e.g., `commonschema.ResourceGroupName()`)
+- Same-package helper functions returning schemas
+
+Schemas defined in other ways (nested blocks) are excluded to reduce false positives from runtime modifications (e.g., conditional properties based on feature flags) that cannot be determined through static analysis.
+
+For detailed limitations of each analyzer, refer to the documentation in the respective analyzer files (e.g., `passes/AZNR002.go`).
