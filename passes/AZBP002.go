@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
+	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
@@ -38,10 +39,15 @@ var AZBP002Analyzer = &analysis.Analyzer{
 	Name:     azbp002Name,
 	Doc:      AZBP002Doc,
 	Run:      runAZBP002,
-	Requires: []*analysis.Analyzer{localschema.LocalAnalyzer},
+	Requires: []*analysis.Analyzer{localschema.LocalAnalyzer, commentignore.Analyzer},
 }
 
 func runAZBP002(pass *analysis.Pass) (interface{}, error) {
+	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	if !ok {
+		return nil, nil
+	}
+
 	schemaInfoCache, ok := pass.ResultOf[localschema.LocalAnalyzer].(map[*ast.CompositeLit]*localschema.LocalSchemaInfoWithName)
 	if !ok {
 		return nil, nil
@@ -57,6 +63,10 @@ func runAZBP002(pass *analysis.Pass) (interface{}, error) {
 	// Iterate over cached schema infos
 	for schemaLit, cached := range schemaInfoCache {
 		schemaInfo := cached.Info
+
+		if ignorer.ShouldIgnore(azbp001Name, schemaInfo.AstCompositeLit) {
+			continue
+		}
 
 		// Only check fields that are both Optional and Computed
 		if !schemaInfo.Schema.Optional || !schemaInfo.Schema.Computed {

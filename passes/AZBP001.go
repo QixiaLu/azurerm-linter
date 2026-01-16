@@ -4,6 +4,7 @@ import (
 	"go/ast"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
+	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
@@ -40,10 +41,15 @@ var AZBP001Analyzer = &analysis.Analyzer{
 	Name:     azbp001Name,
 	Doc:      AZBP001Doc,
 	Run:      runAZBP001,
-	Requires: []*analysis.Analyzer{localschema.LocalAnalyzer},
+	Requires: []*analysis.Analyzer{localschema.LocalAnalyzer, commentignore.Analyzer},
 }
 
 func runAZBP001(pass *analysis.Pass) (interface{}, error) {
+	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	if !ok {
+		return nil, nil
+	}
+
 	schemaInfoCache, ok := pass.ResultOf[localschema.LocalAnalyzer].(map[*ast.CompositeLit]*localschema.LocalSchemaInfoWithName)
 	if !ok {
 		return nil, nil
@@ -51,6 +57,10 @@ func runAZBP001(pass *analysis.Pass) (interface{}, error) {
 
 	for schemaLit, cached := range schemaInfoCache {
 		schemaInfo := cached.Info
+
+		if ignorer.ShouldIgnore(azbp001Name, schemaInfo.AstCompositeLit) {
+			continue
+		}
 
 		// Type check: only check String fields
 		if !schemaInfo.IsType(schema.SchemaValueTypeString) {

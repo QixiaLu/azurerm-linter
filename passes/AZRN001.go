@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"strings"
 
+	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
@@ -29,10 +30,17 @@ var AZRN001Analyzer = &analysis.Analyzer{
 	Name:     azrn001Name,
 	Doc:      AZRN001Doc,
 	Run:      runAZRN001,
-	Requires: []*analysis.Analyzer{localschema.LocalAnalyzer},
+	Requires: []*analysis.Analyzer{
+		localschema.LocalAnalyzer,
+		commentignore.Analyzer,
+	},
 }
 
 func runAZRN001(pass *analysis.Pass) (interface{}, error) {
+	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	if !ok {
+		return nil, nil
+	}
 	schemaInfoCache, ok := pass.ResultOf[localschema.LocalAnalyzer].(map[*ast.CompositeLit]*localschema.LocalSchemaInfoWithName)
 	if !ok {
 		return nil, nil
@@ -40,6 +48,10 @@ func runAZRN001(pass *analysis.Pass) (interface{}, error) {
 
 	for schemaLit, cached := range schemaInfoCache {
 		fieldName := cached.PropertyName
+
+		if ignorer.ShouldIgnore(azrn001Name, schemaLit) {
+			continue
+		}
 
 		// Check if field name contains "_in_percent"
 		if strings.Contains(fieldName, "_in_percent") {
