@@ -1,7 +1,6 @@
 package passes
 
 import (
-	"go/ast"
 	"strings"
 
 	"github.com/bflad/tfproviderlint/passes/commentignore"
@@ -27,9 +26,9 @@ Valid usage:
 const azrn001Name = "AZRN001"
 
 var AZRN001Analyzer = &analysis.Analyzer{
-	Name:     azrn001Name,
-	Doc:      AZRN001Doc,
-	Run:      runAZRN001,
+	Name: azrn001Name,
+	Doc:  AZRN001Doc,
+	Run:  runAZRN001,
 	Requires: []*analysis.Analyzer{
 		localschema.LocalAnalyzer,
 		commentignore.Analyzer,
@@ -41,12 +40,13 @@ func runAZRN001(pass *analysis.Pass) (interface{}, error) {
 	if !ok {
 		return nil, nil
 	}
-	schemaInfoCache, ok := pass.ResultOf[localschema.LocalAnalyzer].(map[*ast.CompositeLit]*localschema.LocalSchemaInfoWithName)
+	schemaInfoList, ok := pass.ResultOf[localschema.LocalAnalyzer].(localschema.LocalSchemaInfoList)
 	if !ok {
 		return nil, nil
 	}
 
-	for schemaLit, cached := range schemaInfoCache {
+	for _, cached := range schemaInfoList {
+		schemaLit := cached.Info.AstCompositeLit
 		fieldName := cached.PropertyName
 
 		if ignorer.ShouldIgnore(azrn001Name, schemaLit) {

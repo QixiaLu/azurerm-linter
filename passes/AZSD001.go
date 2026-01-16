@@ -3,8 +3,8 @@ package passes
 import (
 	"go/ast"
 
-	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
+	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
@@ -56,7 +56,7 @@ func runAZSD001(pass *analysis.Pass) (interface{}, error) {
 	if !ok {
 		return nil, nil
 	}
-	schemaInfoCache, ok := pass.ResultOf[localschema.LocalAnalyzer].(map[*ast.CompositeLit]*localschema.LocalSchemaInfoWithName)
+	schemaInfoList, ok := pass.ResultOf[localschema.LocalAnalyzer].(localschema.LocalSchemaInfoList)
 	if !ok {
 		return nil, nil
 	}
@@ -69,8 +69,9 @@ func runAZSD001(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	// Iterate over cached schema infos
-	for schemaLit, cached := range schemaInfoCache {
+	for _, cached := range schemaInfoList {
 		schemaInfo := cached.Info
+		schemaLit := schemaInfo.AstCompositeLit
 
 		if ignorer.ShouldIgnore(azsd001Name, schemaLit) {
 			continue
