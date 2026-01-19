@@ -7,8 +7,8 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/helper"
+	"github.com/qixialu/azurerm-linter/loader"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"

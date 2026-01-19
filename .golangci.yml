@@ -6,6 +6,7 @@ run:
   modules-download-mode: readonly
 
 linters:
+  default: none
   enable:
     - asasalint
     - asciicheck
@@ -30,8 +31,6 @@ linters:
     - wastedassign
     - whitespace
   settings:
-    gofmt:
-      simplify: true
     errcheck:
       check-type-assertions: true
       check-blank: true
@@ -39,3 +38,8 @@ linters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
