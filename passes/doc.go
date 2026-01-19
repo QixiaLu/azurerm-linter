@@ -274,4 +274,30 @@
 //	        },
 //	    }
 //	}
+//
+// # AZNR003 - Expand/Flatten Function Convention
+//
+// Reports when expand* or flatten* functions are defined as global/package-level
+// functions instead of receiver methods on a resource type.
+//
+// Flagged:
+//
+//	// Global function - should be a receiver method
+//	func expandCustomerManagedKey(input []CustomerManagedKey) (*Encryption, error) {
+//	    // ...
+//	}
+//
+//	func flattenNetworkACLs(input *NetworkRuleSet) []NetworkACLs {
+//	    // ...
+//	}
+//
+// Correct:
+//
+//	func (r AIServices) expandCustomerManagedKey(input []CustomerManagedKey) (*Encryption, error) {
+//	    // ...
+//	}
+//
+//	func (r AIServices) flattenNetworkACLs(input *NetworkRuleSet) []NetworkACLs {
+//	    // ...
+//	}
 package passes
