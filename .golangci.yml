@@ -42,4 +42,5 @@ issues:
 formatters:
   enable:
     - gofmt
+    - gofumpt
     - goimports
