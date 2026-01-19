@@ -170,6 +170,26 @@
 //
 //	name := pointer.From(input.Name)
 //
+// # AZBP005 - License Header Check
+//
+// Reports when Go source files do not have the required licensing header at the
+// very beginning of the file.
+//
+// Flagged:
+//
+//	package main  // Missing license header!
+//
+//	func main() {}
+//
+// Correct:
+//
+//	// Copyright IBM Corp. 2014, 2025
+//	// SPDX-License-Identifier: MPL-2.0
+//
+//	package main
+//
+//	func main() {}
+//
 // # AZRN001 - Percentage Suffix Convention
 //
 // Reports when percentage properties use '_in_percent' suffix instead of the
@@ -206,7 +226,7 @@
 //
 // Reference: https://github.com/hashicorp/terraform-provider-azurerm/blob/main/contributing/topics/guide-new-resource.md
 //
-// When git filter is enabled, it only validates on newly created files
+// # When git filter is enabled, it only validates on newly created files
 //
 // Required order:
 //  1. Special ID fields (name, resource_group_name in order)
@@ -253,5 +273,31 @@
 //	            return nil
 //	        },
 //	    }
+//	}
+//
+// # AZNR003 - Expand/Flatten Function Convention
+//
+// Reports when expand* or flatten* functions are defined as global/package-level
+// functions instead of receiver methods on a resource type.
+//
+// Flagged:
+//
+//	// Global function - should be a receiver method
+//	func expandCustomerManagedKey(input []CustomerManagedKey) (*Encryption, error) {
+//	    // ...
+//	}
+//
+//	func flattenNetworkACLs(input *NetworkRuleSet) []NetworkACLs {
+//	    // ...
+//	}
+//
+// Correct:
+//
+//	func (r AIServices) expandCustomerManagedKey(input []CustomerManagedKey) (*Encryption, error) {
+//	    // ...
+//	}
+//
+//	func (r AIServices) flattenNetworkACLs(input *NetworkRuleSet) []NetworkACLs {
+//	    // ...
 //	}
 package passes

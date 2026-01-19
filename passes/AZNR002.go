@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/bflad/tfproviderlint/helper/astutils"
+	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/passes/schema"
@@ -65,9 +65,9 @@ const aznr002Name = "AZNR002"
 var aznr002SkipPackages = []string{"_test", "/migration", "/client", "/validate", "/test-data", "/parse", "/models"}
 
 var AZNR002Analyzer = &analysis.Analyzer{
-	Name:     aznr002Name,
-	Doc:      AZNR002Doc,
-	Run:      runAZNR002,
+	Name: aznr002Name,
+	Doc:  AZNR002Doc,
+	Run:  runAZNR002,
 	Requires: []*analysis.Analyzer{
 		schema.TypedResourceInfoAnalyzer,
 		commentignore.Analyzer,

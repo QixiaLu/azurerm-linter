@@ -132,9 +132,9 @@ func edgeCase5(props *Props) {
 }
 
 // Helper functions
-func useEnabled(b bool)              {}
-func useEnabledAgain(b bool)         {}
-func useName(s string)               {}
-func useCount(i int)                 {}
-func useDynamicThrottling(b bool)    {}
-func doSomething()                   {}
+func useEnabled(b bool)           {}
+func useEnabledAgain(b bool)      {}
+func useName(s string)            {}
+func useCount(i int)              {}
+func useDynamicThrottling(b bool) {}
+func doSomething()                {}
