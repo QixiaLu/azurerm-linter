@@ -14,7 +14,7 @@ import (
 const AZSD002Doc = `check AtLeastOneOf validation for TypeList fields with all optional nested fields
 
 The AZSD002 analyzer checks that when a pluginsdk.TypeList block has no required nested 
-fields, AtLeastOneOf must be set on the optional fields to ensure at least one is specified.
+fields, AtLeastOneOf or ExactlyOneOf must be set on the optional fields to ensure at least one is specified.
 
 Example violation:
   "setting": {
@@ -125,7 +125,7 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 		// Collect nested fields
 		optionalFieldsCount := 0
 		hasRequiredField := false
-		hasAtLeastOneOf := false
+		hasAtLeastOneOfOrExactlyOneOf := false
 		for _, elt := range nestedSchemaMap.Elts {
 			kv, ok := elt.(*ast.KeyValueExpr)
 			if !ok {
@@ -151,8 +151,9 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 			if nestedInfo.Schema.Optional {
 				// Check if at least one optional field has AtLeastOneOf
 				atLeastOneOfKV := nestedInfo.Fields[schema.SchemaFieldAtLeastOneOf]
-				if atLeastOneOfKV != nil {
-					hasAtLeastOneOf = true
+				exactlyOneOfKV := nestedInfo.Fields[schema.SchemaFieldExactlyOneOf]
+				if atLeastOneOfKV != nil || exactlyOneOfKV != nil {
+					hasAtLeastOneOfOrExactlyOneOf = true
 					break
 				}
 				optionalFieldsCount++
@@ -161,17 +162,17 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 
 		// Only report if there are no required fields, multiple optional fields,
 		// and none of them have AtLeastOneOf set
-		if !hasRequiredField && !hasAtLeastOneOf && optionalFieldsCount >= 2 {
+		if !hasRequiredField && !hasAtLeastOneOfOrExactlyOneOf && optionalFieldsCount >= 2 {
 			pos := pass.Fset.Position(schemaLit.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
 				if propertyName := cached.PropertyName; propertyName != "" {
 					pass.Reportf(schemaLit.Pos(),
 						"%s: TypeList field `%s` has %s, %s must be set on the optional fields to ensure at least one is specified.\n",
-						azsd002Name, propertyName, helper.IssueLine("all optional nested fields"), helper.FixedCode("`AtLeastOneOf`"))
+						azsd002Name, propertyName, helper.IssueLine("all optional nested fields"), helper.FixedCode("`AtLeastOneOf` or `ExactlyOneOf`"))
 				} else {
 					pass.Reportf(schemaLit.Pos(),
 						"%s: TypeList field has %s, %s must be set on the optional fields to ensure at least one is specified.\n",
-						azsd002Name, helper.IssueLine("all optional nested fields"), helper.FixedCode("`AtLeastOneOf`"))
+						azsd002Name, helper.IssueLine("all optional nested fields"), helper.FixedCode("`AtLeastOneOf` or `ExactlyOneOf`"))
 				}
 			}
 		}

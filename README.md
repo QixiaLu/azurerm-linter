@@ -41,7 +41,7 @@ For additional information about each check, see the documentation in passes's d
 | Check | Description |
 |-------|-------------|
 | AZSD001 | check for `MaxItems:1` blocks with single property should be flattened |
-| AZSD002 | check for `AtLeastOneOf` validation on TypeList fields with all optional nested fields |
+| AZSD002 | check for `AtLeastOneOf` or `ExactlyOneOf` validation on TypeList fields with all optional nested fields |
 
 ## Installation
 
