@@ -62,7 +62,10 @@ func runAZNR003(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	ignorer := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	if !ok {
+		return nil, nil
+	}
 
 	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	if !ok {

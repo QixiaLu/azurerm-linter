@@ -29,22 +29,13 @@ linters:
     - unused
     - wastedassign
     - whitespace
-
-linters-settings:
-  gofmt:
-    simplify: true
-  
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
+  settings:
+    gofmt:
+      simplify: true
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
 
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
-  
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
