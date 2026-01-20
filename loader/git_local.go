@@ -88,7 +88,7 @@ func resolveForLocal(repo *git.Repository, remoteName, baseBranch string) (strin
 	// Use shell 'git merge-base' command for robust merge-base detection
 	mergeBaseHash, err := getMergeBase(targetRefName, "HEAD")
 	if err != nil {
-		return targetRefName, nil
+		return targetRefName, err
 	}
 
 	log.Printf("Merge-base with %s: %s", targetRefName, mergeBaseHash[:7])
