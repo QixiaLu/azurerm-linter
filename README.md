@@ -57,10 +57,10 @@ git config --global core.longpaths true
 ### Build
 
 ```bash
-git clone https://github.com/QixiaLu/azurerm-linter.git
-cd azurerm-linter
-go build -o <path/to/terraform-provider-azurerm>
+go install github.com/qixialu/azurerm-linter@latest
 ```
+
+This will install the binary to your `$GOPATH/bin` (or `$HOME/go/bin` by default).
 
 ## Usage
 
@@ -71,19 +71,19 @@ go build -o <path/to/terraform-provider-azurerm>
 cd /path/to/terraform-provider-azurerm
 
 # Check your local branch changes (auto-detect changed lines and packages)
-./azurerm-linter.exe
+azurerm-linter
 
 # Check specific PR (fetch PR branch and create worktree in tmp)
-./azurerm-linter.exe --pr=12345
+azurerm-linter --pr=12345
 
 # Check from diff file
-./azurerm-linter.exe --diff=changes.txt
+azurerm-linter --diff=changes.txt
 
 # Check specific packages
-./azurerm-linter.exe ./internal/services/compute/...
+azurerm-linter ./internal/services/compute/...
 
 # Check all lines in all packages (no filtering)
-./azurerm-linter.exe --no-filter ./internal/services/...
+azurerm-linter --no-filter ./internal/services/...
 ```
 
 ### Common Options
@@ -120,7 +120,7 @@ The tool prints results directly to **standard output (console/terminal)**:
 #### Example output (with issues)
 
 ```bash
-./Azurerm-linter/azurerm-linter.exe
+azurerm-linter
 2026/01/05 10:39:01 Using local git diff mode
 2026/01/05 10:39:01 Current branch: lint_test
 2026/01/05 10:39:02 Merge-base: 0aac888
