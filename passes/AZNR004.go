@@ -2,6 +2,7 @@ package passes
 
 import (
 	"go/ast"
+	"go/types"
 	"strings"
 
 	"github.com/bflad/tfproviderlint/passes/commentignore"
@@ -129,7 +130,10 @@ func runAZNR004(pass *analysis.Pass) (interface{}, error) {
 
 				// Check if returning nil
 				ident, ok := expr.(*ast.Ident)
-				if ok && ident.Name == "nil" {
+				if !ok {
+					continue
+				}
+				if _, isNil := pass.TypesInfo.Uses[ident].(*types.Nil); isNil {
 					hasNilSlice = true
 					break
 				}
