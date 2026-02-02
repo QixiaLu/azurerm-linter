@@ -44,8 +44,6 @@ Correct usage:
 
 const aznr003Name = "AZNR003"
 
-var aznr003SkipPackages = []string{"_test", "/migration", "/client", "/validate", "/test-data", "/parse", "/models"}
-
 var AZNR003Analyzer = &analysis.Analyzer{
 	Name:     aznr003Name,
 	Doc:      AZNR003Doc,
@@ -54,12 +52,8 @@ var AZNR003Analyzer = &analysis.Analyzer{
 }
 
 func runAZNR003(pass *analysis.Pass) (interface{}, error) {
-	// Skip specified packages
-	pkgPath := pass.Pkg.Path()
-	for _, skip := range aznr003SkipPackages {
-		if strings.Contains(pkgPath, skip) {
-			return nil, nil
-		}
+	if helper.ShouldSkipPackageForResourceAnalysis(pass.Pkg.Path()) {
+		return nil, nil
 	}
 
 	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)

@@ -4,9 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"log"
 	"sort"
-	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/astutils"
 	"github.com/bflad/tfproviderlint/passes/commentignore"
@@ -62,8 +60,6 @@ Valid usage:
 
 const aznr002Name = "AZNR002"
 
-var aznr002SkipPackages = []string{"_test", "/migration", "/client", "/validate", "/test-data", "/parse", "/models"}
-
 var AZNR002Analyzer = &analysis.Analyzer{
 	Name: aznr002Name,
 	Doc:  AZNR002Doc,
@@ -75,13 +71,6 @@ var AZNR002Analyzer = &analysis.Analyzer{
 }
 
 func runAZNR002(pass *analysis.Pass) (interface{}, error) {
-	pkgPath := pass.Pkg.Path()
-	for _, skip := range aznr002SkipPackages {
-		if strings.Contains(pkgPath, skip) {
-			return nil, nil
-		}
-	}
-
 	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
 	if !ok {
 		return nil, nil
@@ -90,6 +79,7 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 	if !ok {
 		return nil, nil
 	}
+
 	for _, resource := range allTypedResources {
 		// Filter: must have Update method
 		if resource.UpdateFunc == nil {
@@ -97,10 +87,8 @@ func runAZNR002(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Filter: must have extracted ArgumentsProperties
+		// Skip resource - failed to extract schema properties
 		if len(resource.ArgumentsProperties) == 0 {
-			pos := pass.Fset.Position(resource.ArgumentsFunc.Pos())
-			log.Printf("%s:%d: %s: Skipping resource %q - failed to extract schema properties",
-				pos.Filename, pos.Line, aznr002Name, resource.ResourceTypeName)
 			continue
 		}
 
@@ -286,12 +274,7 @@ func reportMissingProperties(pass *analysis.Pass, ignorer *commentignore.Ignorer
 		}
 	}
 
-	if len(missingProps) == 0 || len(handledProps) == 0 {
-		if len(handledProps) == 0 && len(updatableProps) != 0 {
-			pos := pass.Fset.Position(resource.UpdateFunc.Pos())
-			log.Printf("%s:%d: %s: Skipping resource %q - update likely delegated to helper function",
-				pos.Filename, pos.Line, aznr002Name, resource.ResourceTypeName)
-		}
+	if len(missingProps) == 0 || len(handledProps) == 0 { // Skipping resource - update likely delegated to helper function
 		return
 	}
 
