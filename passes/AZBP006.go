@@ -3,7 +3,6 @@ package passes
 import (
 	"go/ast"
 	"go/types"
-
 	"strings"
 
 	"github.com/bflad/tfproviderlint/passes/commentignore"
@@ -58,7 +57,10 @@ func runAZBP006(pass *analysis.Pass) (interface{}, error) {
 
 	nodeFilter := []ast.Node{(*ast.CompositeLit)(nil)}
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
-		compositeLit := n.(*ast.CompositeLit)
+		compositeLit, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return
+		}
 
 		// Skip test files - nil in test tables is often semantically meaningful
 		pos := pass.Fset.Position(compositeLit.Pos())
