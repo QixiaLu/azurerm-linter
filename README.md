@@ -23,6 +23,7 @@ For additional information about each check, see the documentation in passes's d
 | AZNR001 | check for Schema field ordering | When git filter is on, this analyzer only run on newly created resources/data sources |
 | AZNR002 | check for top-level updatable arguments are included in Update func | This analyzer currently only runs on typed resource |
 | AZNR003 | check that `expand*`/`flatten*` functions are defined as receiver methods |This analyzer currently only runs on typed resource/data source |
+| AZNR004 | check that `flatten*` functions returning slices don't return `nil` |
 
 ### Azure Naming Rule Checks
 
@@ -42,6 +43,7 @@ For additional information about each check, see the documentation in passes's d
 |-------|-------------|
 | AZSD001 | check for `MaxItems:1` blocks with single property should be flattened |
 | AZSD002 | check for `AtLeastOneOf` or `ExactlyOneOf` validation on TypeList fields with all optional nested fields |
+| AZSD003 | check for redundant use of both `ExactlyOneOf` and `ConflictsWith` |
 
 ## Installation
 
