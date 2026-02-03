@@ -105,7 +105,17 @@ func findChangedSDKEnum(pass *analysis.Pass, elts []ast.Expr) (string, string) {
 	return "", ""
 }
 
-// extractEnumType returns the enum package and type if all elements are the same SDK enum type
+// extractEnumType returns the enum package and type if all elements are the same SDK enum type.
+//
+// Example input (elts from StringInSlice):
+//
+//	[]string{
+//	    string(virtualmachines.VirtualMachinePriorityTypesLow),     // elt[0]
+//	    string(virtualmachines.VirtualMachinePriorityTypesRegular), // elt[1]
+//	    string(virtualmachines.VirtualMachinePriorityTypesSpot),    // elt[2]
+//	}
+//
+// Returns: ("virtualmachines", *types.Named for VirtualMachinePriorityTypes)
 func extractEnumType(pass *analysis.Pass, elts []ast.Expr) (string, *types.Named) {
 	var enumPkg string
 	var enumNamed *types.Named
@@ -126,8 +136,13 @@ func extractEnumType(pass *analysis.Pass, elts []ast.Expr) (string, *types.Named
 			return "", nil
 		}
 
-		constObj, _ := pass.TypesInfo.Uses[sel.Sel].(*types.Const)
-		if constObj == nil {
+		obj := pass.TypesInfo.Uses[sel.Sel]
+		if obj == nil {
+			return "", nil
+		}
+
+		constObj, ok := obj.(*types.Const)
+		if !ok {
 			return "", nil
 		}
 
