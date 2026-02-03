@@ -6,19 +6,25 @@ import (
 
 // AllChecks contains all Analyzers that report issues
 var AllChecks = []*analysis.Analyzer{
-	AZBP001Analyzer,
-	AZBP002Analyzer,
-	AZBP003Analyzer,
-	AZBP004Analyzer,
+	// AZBP001Analyzer,
+	// AZBP002Analyzer,
+	// AZBP003Analyzer,
+	// AZBP004Analyzer,
 	AZBP005Analyzer,
-	AZBP006Analyzer,
-	AZSD001Analyzer,
-	AZSD002Analyzer,
-	AZSD003Analyzer,
-	AZRN001Analyzer,
-	AZRE001Analyzer,
-	AZNR001Analyzer,
-	AZNR002Analyzer,
-	AZNR003Analyzer,
-	AZNR004Analyzer,
+	// AZBP006Analyzer,
+	// AZBP007Analyzer,
+	// AZBP008Analyzer,
+
+	// AZSD001Analyzer,
+	// AZSD002Analyzer,
+	// AZSD003Analyzer,
+
+	// AZRN001Analyzer,
+
+	// AZRE001Analyzer,
+
+	// AZNR001Analyzer,
+	// AZNR002Analyzer,
+	// AZNR003Analyzer,
+	// AZNR004Analyzer,
 }

@@ -16,6 +16,8 @@ For additional information about each check, see the documentation in passes's d
 | AZBP004 | check for zero-value initialization followed by nil check and pointer dereference that should use `pointer.From` |
 | AZBP005 | check that Go source files have the correct licensing header |
 | AZBP006 | check for redundant `nil` assignments to pointer fields in struct literals |
+| AZBP007 | check that string slices are initialized using `make([]string, 0)` instead of `[]string{}` |
+| AZBP008 | check that `ValidateFunc` uses `PossibleValuesFor*` instead of manual enum listing |
 
 ### Azure New Resource Checks
 

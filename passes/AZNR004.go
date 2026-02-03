@@ -154,9 +154,10 @@ func runAZNR004(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 
-			pass.Reportf(retStmt.Pos(), "%s: flatten function '%s' should return an empty slice instead of %s\n",
+			pass.Reportf(retStmt.Pos(), "%s: flatten function '%s' should return %s instead of %s\n",
 				aznr004Name,
 				funcName,
+				helper.FixedCode("an empty slice"),
 				helper.IssueLine("nil"))
 
 			return true
