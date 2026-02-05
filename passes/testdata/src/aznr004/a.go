@@ -9,8 +9,6 @@ type NetworkRuleSet struct {
 	Rules []string
 }
 
-// ============== VALID CASES ==============
-
 // Valid: Returns empty slice literal
 func flattenReturnsEmptySlice(input *NetworkRuleSet) []NetworkACLs {
 	if input == nil {
@@ -42,8 +40,6 @@ func flattenMultipleSlicesValid(input *NetworkRuleSet) ([]NetworkACLs, []interfa
 	}
 	return []NetworkACLs{{Name: "test"}}, []interface{}{"a"}, nil
 }
-
-// ============== INVALID CASES ==============
 
 // Invalid: Returns nil instead of empty slice
 func flattenReturnsNil(input *NetworkRuleSet) []NetworkACLs {
