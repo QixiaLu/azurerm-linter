@@ -106,17 +106,18 @@ func checkSchemaForViolations(pass *analysis.Pass, schemaInfo *schema.SchemaInfo
 	}
 
 	var pos token.Position
-	
-	if schemaInfo.DeclaresField(schema.SchemaFieldValidateFunc) {
+
+	switch {
+	case schemaInfo.DeclaresField(schema.SchemaFieldValidateFunc):
 		validateKV := schemaInfo.Fields[schema.SchemaFieldValidateFunc]
 		if validateKV != nil {
 			pos = pass.Fset.Position(validateKV.Pos())
 		} else {
 			return
 		}
-	} else if schemaInfo.Schema.Required || schemaInfo.Schema.Optional {
+	case schemaInfo.Schema.Required || schemaInfo.Schema.Optional:
 		pos = pass.Fset.Position(schemaInfo.AstCompositeLit.Pos())
-	} else {
+	default:
 		return
 	}
 
