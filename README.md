@@ -48,6 +48,7 @@ For additional information about each check, see the documentation in passes's d
 | AZSD001 | check for `MaxItems:1` blocks with single property should be flattened |
 | AZSD002 | check for `AtLeastOneOf` or `ExactlyOneOf` validation on TypeList fields with all optional nested fields |
 | AZSD003 | check for redundant use of both `ExactlyOneOf` and `ConflictsWith` |
+| AZSD004 | check for `computed` attributes should only have computed-only nested schema |
 
 ## Installation
 

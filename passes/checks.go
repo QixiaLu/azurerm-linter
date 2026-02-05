@@ -18,6 +18,7 @@ var AllChecks = []*analysis.Analyzer{
 	AZSD001Analyzer,
 	AZSD002Analyzer,
 	AZSD003Analyzer,
+	AZSD004Analyzer,
 
 	AZRN001Analyzer,
 
