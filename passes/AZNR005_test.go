@@ -7,7 +7,7 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestAZBP009(t *testing.T) {
+func TestAZNR005(t *testing.T) {
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, passes.AZBP009Analyzer, "testdata/src/azbp009")
+	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/aznr005")
 }

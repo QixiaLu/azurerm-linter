@@ -17,7 +17,7 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-const AZBP009Doc = `check for alphabetically sorted registration map and slice entries
+const AZNR005Doc = `check for alphabetically sorted registration map and slice entries
 
 Registration methods in registration.go files should have their map entries and slice entries
 sorted alphabetically for better maintainability and consistency.
@@ -52,16 +52,16 @@ func (r Registration) Resources() []sdk.Resource {
 	}
 }`
 
-const azbp009Name = "AZBP009"
+const aznr005Name = "AZNR005"
 
-var AZBP009Analyzer = &analysis.Analyzer{
-	Name:     azbp009Name,
-	Doc:      AZBP009Doc,
-	Run:      runAZBP009,
+var AZNR005Analyzer = &analysis.Analyzer{
+	Name:     aznr005Name,
+	Doc:      AZNR005Doc,
+	Run:      runAZNR005,
 	Requires: []*analysis.Analyzer{inspect.Analyzer, commentignore.Analyzer},
 }
 
-func runAZBP009(pass *analysis.Pass) (interface{}, error) {
+func runAZNR005(pass *analysis.Pass) (interface{}, error) {
 	if helper.ShouldSkipPackageForResourceAnalysis(pass.Pkg.Path()) {
 		return nil, nil
 	}
@@ -88,7 +88,7 @@ func runAZBP009(pass *analysis.Pass) (interface{}, error) {
 				return
 			}
 
-			if ignorer.ShouldIgnore(azbp009Name, funcDecl) {
+			if ignorer.ShouldIgnore(aznr005Name, funcDecl) {
 				return
 			}
 
@@ -166,7 +166,7 @@ func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit, funcPo
 			pos := pass.Fset.Position(elt.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(compositeLit.Pos(), "%s: %s\n",
-					azbp009Name, helper.FixedCode("registrations should be sorted alphabetically"))
+					aznr005Name, helper.FixedCode("registrations should be sorted alphabetically"))
 				return
 			}
 		}

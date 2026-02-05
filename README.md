@@ -16,8 +16,8 @@ For additional information about each check, see the documentation in passes's d
 | AZBP004 | check for zero-value initialization followed by nil check and pointer dereference that should use `pointer.From` |
 | AZBP005 | check that Go source files have the correct licensing header |
 | AZBP006 | check for redundant `nil` assignments to pointer fields in struct literals |
-| AZBP007 | check that string slices are initialized using `make([]string, 0)` instead of `[]string{}` |
-| AZBP008 | check that `ValidateFunc` uses `PossibleValuesFor*` instead of manual enum listing |
+| AZBP007 | check for string slices initialized using `make([]string, 0)` instead of `[]string{}` |
+| AZBP008 | check for `ValidateFunc` uses `PossibleValuesFor*` instead of manual enum listing |
 
 ### Azure New Resource Checks
 
@@ -25,8 +25,9 @@ For additional information about each check, see the documentation in passes's d
 |-------|-------------|----------|
 | AZNR001 | check for Schema field ordering | When git filter is on, this analyzer only run on newly created resources/data sources |
 | AZNR002 | check for top-level updatable arguments are included in Update func | This analyzer currently only runs on typed resource |
-| AZNR003 | check that `expand*`/`flatten*` functions are defined as receiver methods |This analyzer currently only runs on typed resource/data source |
-| AZNR004 | check that `flatten*` functions returning slices don't return `nil` |
+| AZNR003 | check for `expand*`/`flatten*` functions are defined as receiver methods |This analyzer currently only runs on typed resource/data source |
+| AZNR004 | check for `flatten*` functions returning slices don't return `nil` |
+| AZNR005 | check for registrations are sorted alphabetically |
 
 ### Azure Naming Rule Checks
 

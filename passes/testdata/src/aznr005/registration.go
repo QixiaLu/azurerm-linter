@@ -1,10 +1,9 @@
-package azbp009
+package aznr005
 
 import (
 	"testdata/src/mockpkg/pluginsdk"
 	"testdata/src/mockpkg/sdk"
 )
-
 
 type Registration struct{}
 
@@ -23,7 +22,7 @@ func (r Registration) SupportedDataSources() map[string]*pluginsdk.Resource {
 }
 
 func (r Registration) InvalidSupportedResources() map[string]*pluginsdk.Resource {
-	return map[string]*pluginsdk.Resource{ // want `AZBP009`
+	return map[string]*pluginsdk.Resource{ // want `AZNR005`
 		"azurerm_availability_set":       nil,
 		"azurerm_dedicated_host":         nil,
 		"azurerm_managed_disk":           nil,
@@ -41,7 +40,7 @@ func (r Registration) Resources() []sdk.Resource {
 }
 
 func (r Registration) InvalidResources() []sdk.Resource {
-	return []sdk.Resource{ // want `AZBP009`
+	return []sdk.Resource{ // want `AZNR005`
 		ApiManagementNotificationRecipientUserResource{},
 		ApiManagementNotificationRecipientEmailResource{},
 	}
