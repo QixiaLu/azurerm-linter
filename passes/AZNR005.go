@@ -83,8 +83,11 @@ func runAZNR005(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		inspector.Preorder([]ast.Node{(*ast.FuncDecl)(nil)}, func(n ast.Node) {
-			funcDecl := n.(*ast.FuncDecl)
-			if !hasRegistrationReceiver(funcDecl, pass) {
+			funcDecl, ok := n.(*ast.FuncDecl)
+			if !ok {
+				return
+			}
+			if !hasRegistrationReceiver(funcDecl) {
 				return
 			}
 
@@ -103,7 +106,7 @@ func runAZNR005(pass *analysis.Pass) (interface{}, error) {
 }
 
 // hasRegistrationReceiver checks if the function has a Registration receiver
-func hasRegistrationReceiver(funcDecl *ast.FuncDecl, pass *analysis.Pass) bool {
+func hasRegistrationReceiver(funcDecl *ast.FuncDecl) bool {
 	if funcDecl.Recv == nil || len(funcDecl.Recv.List) == 0 {
 		return false
 	}
@@ -130,11 +133,10 @@ func analyzeRegistrationMethod(pass *analysis.Pass, funcDecl *ast.FuncDecl) {
 	}
 
 	ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.ReturnStmt:
+		if node, ok := n.(*ast.ReturnStmt); ok {
 			for _, expr := range node.Results {
 				if compositeLit, ok := expr.(*ast.CompositeLit); ok {
-					validateSorting(pass, compositeLit, funcDecl.Pos())
+					validateSorting(pass, compositeLit)
 				}
 			}
 		}
@@ -143,7 +145,7 @@ func analyzeRegistrationMethod(pass *analysis.Pass, funcDecl *ast.FuncDecl) {
 }
 
 // validateSorting examines composite literals for sorting violations
-func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit, funcPos token.Pos) {
+func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) {
 	if compositeLit.Type == nil {
 		return
 	}
