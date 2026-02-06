@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-// Invalid: using string(enum) in StringInSlice instead of PossibleValuesFor
 func invalidCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"priority": {
@@ -22,7 +21,6 @@ func invalidCases() map[string]*schema.Schema {
 	}
 }
 
-// Valid: using PossibleValuesFor function
 func validCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"priority": {
@@ -34,7 +32,6 @@ func validCases() map[string]*schema.Schema {
 	}
 }
 
-// Valid: using literal strings (not SDK enums)
 func validLiteralStrings() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"sku_name": {
@@ -49,7 +46,6 @@ func validLiteralStrings() map[string]*schema.Schema {
 	}
 }
 
-// Valid: mixed enum and literal string (should not trigger)
 func validMixedContent() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"priority": {
@@ -65,7 +61,6 @@ func validMixedContent() map[string]*schema.Schema {
 	}
 }
 
-// Valid: mixed enum and literal string (should not trigger)
 func validNotSameContent() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"priority": {

@@ -68,7 +68,6 @@ func runAZBP006(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		// Get struct type to look up field types
 		structType := getStructType(pass.TypesInfo.TypeOf(compositeLit))
 		if structType == nil {
 			return

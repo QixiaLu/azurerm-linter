@@ -147,7 +147,7 @@ func extractEnumType(pass *analysis.Pass, elts []ast.Expr) (string, *types.Named
 		}
 
 		named, ok := constObj.Type().(*types.Named)
-		if !ok || !isEnumTypeInSDK(pass, named) {
+		if !ok || !helper.IsAzureSDKEnumType(pass, named) {
 			return "", nil
 		}
 

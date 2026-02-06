@@ -3,7 +3,6 @@ package passes
 import (
 	"go/ast"
 	"go/types"
-	"strings"
 
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
@@ -120,7 +119,7 @@ func runAZBP003(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		named, ok := targetType.(*types.Named)
-		if !ok || !isEnumTypeInSDK(pass, named) {
+		if !ok || !helper.IsAzureSDKEnumType(pass, named) {
 			return
 		}
 
@@ -131,64 +130,4 @@ func runAZBP003(pass *analysis.Pass) (interface{}, error) {
 	})
 
 	return nil, nil
-}
-
-// Find if it's an enum type by checking for PossibleValuesFor{TypeName} function
-func isEnumTypeInSDK(pass *analysis.Pass, named *types.Named) bool {
-	// 1. Check if underlying type is string OR integer
-	basic, ok := named.Underlying().(*types.Basic)
-	if !ok {
-		return false
-	}
-
-	// Accept string or integer types (int, int64, int32, etc.)
-	info := basic.Info()
-	if info&types.IsString == 0 && info&types.IsInteger == 0 {
-		return false
-	}
-
-	// 2. Check package path is go Azure SDK
-	pkg := named.Obj().Pkg()
-	if pkg == nil || !strings.Contains(pkg.Path(), "github.com/hashicorp/go-azure-sdk") {
-		return false
-	}
-
-	// 3. Check for PossibleValuesFor{TypeName} function - the standard enum pattern
-	typeName := named.Obj().Name()
-	functionName := "PossibleValuesFor" + typeName
-
-	obj := pkg.Scope().Lookup(functionName)
-	if obj == nil {
-		// Fallback: check if defined in constants.go
-		pos := named.Obj().Pos()
-		position := pass.Fset.Position(pos)
-		return strings.HasSuffix(position.Filename, "constants.go")
-	}
-
-	// Verify it's a function returning []string
-	fn, ok := obj.(*types.Func)
-	if !ok {
-		return false
-	}
-
-	sig, ok := fn.Type().(*types.Signature)
-	if !ok {
-		return false
-	}
-	if sig.Params().Len() != 0 || sig.Results().Len() != 1 {
-		return false
-	}
-
-	// Check return type is []string
-	slice, ok := sig.Results().At(0).Type().(*types.Slice)
-	if !ok {
-		return false
-	}
-
-	elem, ok := slice.Elem().(*types.Basic)
-	if !ok {
-		return false
-	}
-
-	return ok && elem.Kind() == basic.Kind()
 }

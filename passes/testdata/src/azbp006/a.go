@@ -11,7 +11,6 @@ type Options struct {
 	Enabled bool
 }
 
-// Invalid: redundant nil assignments to pointer fields
 func invalidCases() *Config {
 	return &Config{
 		Name:    nil, // want `AZBP006`
@@ -19,7 +18,6 @@ func invalidCases() *Config {
 	}
 }
 
-// Valid: slice and map nil assignments are OK (not pointers)
 func validSliceAndMap() *Config {
 	return &Config{
 		Items: nil,
@@ -27,7 +25,6 @@ func validSliceAndMap() *Config {
 	}
 }
 
-// Valid: no nil assignments
 func validOmitted() *Config {
 	return &Config{}
 }

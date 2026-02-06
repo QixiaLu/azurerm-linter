@@ -76,18 +76,15 @@ func runAZNR004(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		// Check if function name starts with "flatten" (case-insensitive)
 		funcName := funcDecl.Name.Name
 		if !strings.HasPrefix(strings.ToLower(funcName), "flatten") {
 			return
 		}
 
-		// Check if function returns a slice type
 		if funcDecl.Type.Results == nil || len(funcDecl.Type.Results.List) == 0 {
 			return
 		}
 
-		// Find ALL slice return types and their positions
 		type sliceReturnInfo struct {
 			index     int
 			sliceType *ast.ArrayType
@@ -103,7 +100,6 @@ func runAZNR004(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		// Check function body for return statements returning nil
 		if funcDecl.Body == nil {
 			return
 		}
@@ -114,7 +110,6 @@ func runAZNR004(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 
-			// Check if return statement has results
 			if len(retStmt.Results) == 0 {
 				return true
 			}
@@ -143,13 +138,11 @@ func runAZNR004(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 
-			// Check git filter
 			pos := pass.Fset.Position(retStmt.Pos())
 			if !loader.ShouldReport(pos.Filename, pos.Line) {
 				return true
 			}
 
-			// Check comment ignore
 			if ignorer.ShouldIgnore(aznr004Name, retStmt) {
 				return true
 			}

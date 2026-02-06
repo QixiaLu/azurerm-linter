@@ -6,21 +6,18 @@ import (
 
 func validCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		// Valid: Only ExactlyOneOf, no ConflictsWith
 		"field_with_exactlyone": {
 			Type:         schema.TypeString,
 			Optional:     true,
 			ExactlyOneOf: []string{"field_with_exactlyone", "field_alternative"},
 		},
 
-		// Valid: Only ConflictsWith, no ExactlyOneOf
 		"field_with_conflicts": {
 			Type:          schema.TypeString,
 			Optional:      true,
 			ConflictsWith: []string{"another_field"},
 		},
 
-		// Valid: ExactlyOneOf and ConflictsWith with NO overlap (different fields)
 		"pipeline": {
 			Type:          schema.TypeList,
 			Optional:      true,
@@ -32,7 +29,6 @@ func validCases() map[string]*schema.Schema {
 
 func invalidCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		// Invalid: ConflictsWith contains field_other which is also in ExactlyOneOf
 		"field_both": { // want `AZSD003`
 			Type:          schema.TypeString,
 			Optional:      true,
@@ -40,7 +36,6 @@ func invalidCases() map[string]*schema.Schema {
 			ConflictsWith: []string{"field_other"}, // Redundant - field_other is in ExactlyOneOf
 		},
 
-		// Invalid: Partial overlap - one of ConflictsWith is in ExactlyOneOf
 		"partial_overlap": { // want `AZSD003`
 			Type:          schema.TypeString,
 			Optional:      true,

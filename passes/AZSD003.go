@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"strconv"
+	"strings"
 
 	"github.com/bflad/tfproviderlint/helper/terraformtype/helper/schema"
 	"github.com/bflad/tfproviderlint/passes/commentignore"
@@ -81,13 +82,11 @@ func runAZSD003(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		// Extract string values from ExactlyOneOf
 		exactlyOneOfValues := extractStringSliceValues(exactlyOneOfKV.Value)
 		if len(exactlyOneOfValues) == 0 {
 			continue
 		}
 
-		// Extract string values from ConflictsWith
 		conflictsWithValues := extractStringSliceValues(conflictsWithKV.Value)
 		if len(conflictsWithValues) == 0 {
 			continue
@@ -106,13 +105,12 @@ func runAZSD003(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		// Only report if there's overlap
 		if len(redundantFields) > 0 {
 			pos := pass.Fset.Position(schemaLit.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
 				pass.Reportf(schemaLit.Pos(), "%s: ConflictsWith contains %s which is redundant - already covered by ExactlyOneOf",
 					azsd003Name,
-					helper.IssueLine(formatFieldList(redundantFields)))
+					helper.IssueLine(strings.Join(redundantFields, ", ")))
 			}
 		}
 	}
@@ -138,19 +136,4 @@ func extractStringSliceValues(expr ast.Expr) []string {
 	}
 
 	return values
-}
-
-// formatFieldList formats a list of field names for display
-func formatFieldList(fields []string) string {
-	if len(fields) == 1 {
-		return fields[0]
-	}
-	result := ""
-	for i, f := range fields {
-		if i > 0 {
-			result += ", "
-		}
-		result += f
-	}
-	return result
 }
