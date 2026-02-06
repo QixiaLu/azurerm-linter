@@ -19,6 +19,7 @@ For additional information about each check, see the documentation in passes's d
 | AZBP007 | check for string slices initialized using `make([]string, 0)` instead of `[]string{}` |
 | AZBP008 | check for `ValidateFunc` uses `PossibleValuesFor*` instead of manual enum listing |
 | AZBP009 | check for variable uses the same name as the imported package |
+| AZBP010 | check for variables that are declared and immediately returned |
 
 ### Azure New Resource Checks
 
