@@ -277,8 +277,8 @@ func (cs *ChangeSet) getChangedPackages() []string {
 
 	for filePath := range cs.changedFiles {
 		// Extract service package path from file path
-		// e.g., "internal/services/manageddevopspools/client/client.go" -> "./internal/services/manageddevopspools"
-		// e.g., "internal/services/policy/policy_assignment_resource.go" -> "./internal/services/policy"
+		// e.g., "internal/services/manageddevopspools/client/client.go" -> "./internal/services/manageddevopspools/..."
+		// e.g., "internal/services/policy/policy_assignment_resource.go" -> "./internal/services/policy/..."
 
 		if !strings.Contains(filePath, servicePathPrefix) {
 			continue
@@ -294,7 +294,7 @@ func (cs *ChangeSet) getChangedPackages() []string {
 		serviceParts := strings.Split(parts[1], "/")
 		if len(serviceParts) > 0 {
 			serviceName := serviceParts[0]
-			packagePath := "./" + servicePathPrefix + serviceName
+			packagePath := "./" + servicePathPrefix + serviceName + "/..."
 			packageSet[packagePath] = true
 		}
 	}
