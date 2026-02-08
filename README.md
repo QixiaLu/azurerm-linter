@@ -20,6 +20,7 @@ For additional information about each check, see the documentation in passes's d
 | AZBP008 | check for `ValidateFunc` uses `PossibleValuesFor*` instead of manual enum listing |
 | AZBP009 | check for variable uses the same name as the imported package |
 | AZBP010 | check for variables that are declared and immediately returned |
+| AZBP011 | check for `strings.EqualFold` usage in enum comparisons |
 
 ### Azure New Resource Checks
 
