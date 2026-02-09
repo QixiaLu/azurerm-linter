@@ -75,7 +75,16 @@ func runAZBP009(pass *analysis.Pass) (interface{}, error) {
 		importNames := make(map[string]bool)
 
 		for _, imp := range file.Imports {
-			if imp.Name == nil && imp.Path != nil {
+			var importName string
+
+			if imp.Name != nil {
+				// Explicitly aliased import (foo "example.com/pkg")
+				// Exclude blank (_) and dot (.) imports
+				if imp.Name.Name != "_" && imp.Name.Name != "." {
+					importName = imp.Name.Name
+				}
+			} else if imp.Path != nil {
+				// Regular import - infer name from package path
 				path := imp.Path.Value
 				if len(path) >= 2 {
 					path = path[1 : len(path)-1]
@@ -83,9 +92,13 @@ func runAZBP009(pass *analysis.Pass) (interface{}, error) {
 						path = path[lastSlash+1:]
 					}
 					if path != "" {
-						importNames[path] = true
+						importName = path
 					}
 				}
+			}
+
+			if importName != "" {
+				importNames[importName] = true
 			}
 		}
 		fileImports[filename] = importNames

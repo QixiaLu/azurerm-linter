@@ -2,41 +2,41 @@ package azbp009
 
 import (
 	"context"
+	. "errors"
 	"fmt"
-	"github.com/hashicorp/go-azure-helpers/lang/pointer"
+	_ "strings"
+
+	helper "github.com/hashicorp/go-azure-helpers/lang/pointer"
+	ptr "github.com/hashicorp/go-azure-helpers/lang/pointer"
 )
 
 func badFunction() {
 	context := "invalid" // want `AZBP009`
-	pointer := 42        // want `AZBP009`
+	ptr := 42            // want `AZBP009`
+	helper := "bad"      // want `AZBP009`
 	fmt := "bad"         // want `AZBP009`
+	pointer := "dsds"
 	_ = context
-	_ = pointer
+	_ = ptr
+	_ = helper
 	_ = fmt
+	_ = pointer
 }
 
 func testFunction() {
-	contest, pointer := "invalid", 42 // want `AZBP009`
+	contest, ptr := "invalid", 42 // want `AZBP009`
 	_ = contest
-	_ = pointer
+	_ = ptr
 }
 
 func goodFunction() {
+	// Use imports to avoid unused import errors
 	ctx := context.Background()
+	fmt.Println("hello")
+	err := New("test error")
+	val := ptr.To("test")
+	val2 := helper.From(&val)
 	_ = ctx
-}
-
-// Using the imported packages correctly
-func usingImports() {
-	value := pointer.To("test")
-	_ = value
-}
-
-func properFmtUsage(data fmt.Stringer) {
-	_ = data
-}
-
-func badFmtUsage() {
-	fmt := "invalid string" // want `AZBP009`
-	_ = fmt
+	_ = err
+	_ = val2
 }

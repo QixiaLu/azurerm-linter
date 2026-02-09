@@ -99,9 +99,6 @@ func runAZBP010(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				varNames := make([]string, len(declaredVars))
-				copy(varNames, declaredVars)
-
 				pass.Reportf(declStmt.Pos(), "%s: variable declared and immediately returned, consider returning the value directly\n",
 					azbp010Name)
 			}
@@ -146,16 +143,9 @@ func returnsOnlyDeclaredVars(returnStmt *ast.ReturnStmt, declaredVars []string) 
 		return false
 	}
 
-	// Create a map for quick lookup
-	declaredMap := make(map[string]bool)
-	for _, varName := range declaredVars {
-		declaredMap[varName] = true
-	}
-
-	// Check if all returned expressions are exactly the declared variables
-	for _, result := range returnStmt.Results {
+	for i, result := range returnStmt.Results {
 		if ident, ok := result.(*ast.Ident); ok {
-			if !declaredMap[ident.Name] {
+			if ident.Name != declaredVars[i] {
 				return false
 			}
 		} else {

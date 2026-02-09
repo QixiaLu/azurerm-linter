@@ -20,7 +20,7 @@ func badComplexAssignmentReturn() error {
 	return err
 }
 
-func test1() string {
+func goodPartialReturn() string {
 	str, _ := someFunction2()
 	return str
 }
@@ -31,10 +31,33 @@ func goodMultipleVariables() (string, int) {
 	return str, num
 }
 
+func goodDifferentOrder() (int, string) {
+	a, b := someFunction3()
+	return b, a
+}
+
+func goodDuplicateReturn() int {
+	a, _ := someFunction4()
+	return a
+}
+
+func goodMultipleInOrder() (string, error) {
+	result, err := someFunction2() // want 	`AZBP010`
+	return result, err
+}
+
 func someFunction() error {
 	return nil
 }
 
 func someFunction2() (string, error) {
 	return "", nil
+}
+
+func someFunction3() (string, int) {
+	return "test", 42
+}
+
+func someFunction4() (int, int) {
+	return 1, 2
 }
