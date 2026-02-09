@@ -31,6 +31,7 @@ For additional information about each check, see the documentation in passes's d
 | AZNR003 | check for `expand*`/`flatten*` functions are defined as receiver methods |This analyzer currently only runs on typed resource/data source |
 | AZNR004 | check for `flatten*` functions returning slices don't return `nil` |
 | AZNR005 | check for registrations are sorted alphabetically |
+| AZNR006 | check for `nil` checks should be performed inside `flatten*` methods |
 
 ### Azure Naming Rule Checks
 
