@@ -74,7 +74,10 @@ func runAZBP011(pass *analysis.Pass) (interface{}, error) {
 	nodeFilter := []ast.Node{(*ast.CallExpr)(nil)}
 
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
-		callExpr := n.(*ast.CallExpr)
+		callExpr, ok := n.(*ast.CallExpr)
+		if !ok {
+			return
+		}
 
 		// Check if this is a strings.EqualFold call
 		if !isStringsEqualFoldCall(callExpr) {

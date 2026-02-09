@@ -64,7 +64,10 @@ func runAZBP010(pass *analysis.Pass) (interface{}, error) {
 
 	nodeFilter := []ast.Node{(*ast.FuncDecl)(nil)}
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
-		funcDecl := n.(*ast.FuncDecl)
+		funcDecl, ok := n.(*ast.FuncDecl)
+		if !ok {
+			return
+		}
 		if funcDecl.Body == nil {
 			return
 		}
@@ -97,9 +100,7 @@ func runAZBP010(pass *analysis.Pass) (interface{}, error) {
 				}
 
 				varNames := make([]string, len(declaredVars))
-				for i, varName := range declaredVars {
-					varNames[i] = varName
-				}
+				copy(varNames, declaredVars)
 
 				pass.Reportf(declStmt.Pos(), "%s: variable declared and immediately returned, consider returning the value directly\n",
 					azbp010Name)

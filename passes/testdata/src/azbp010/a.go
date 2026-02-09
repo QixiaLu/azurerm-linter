@@ -20,7 +20,7 @@ func badComplexAssignmentReturn() error {
 	return err
 }
 
-func test1() (string) {
+func test1() string {
 	str, _ := someFunction2()
 	return str
 }

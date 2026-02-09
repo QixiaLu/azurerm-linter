@@ -67,7 +67,10 @@ func runAZNR006(pass *analysis.Pass) (interface{}, error) {
 	// Look for if statements
 	nodeFilter := []ast.Node{(*ast.IfStmt)(nil)}
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
-		ifStmt := n.(*ast.IfStmt)
+		ifStmt, ok := n.(*ast.IfStmt)
+		if !ok {
+			return
+		}
 
 		// Check if this is a nil check pattern and extract the checked variable
 		checkedVar := getNilCheckedVariable(ifStmt.Cond)

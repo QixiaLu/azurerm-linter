@@ -8,8 +8,8 @@ import (
 
 func badFunction() {
 	context := "invalid" // want `AZBP009`
-	pointer := 42           // want `AZBP009`
-	fmt := "bad"           // want `AZBP009`
+	pointer := 42        // want `AZBP009`
+	fmt := "bad"         // want `AZBP009`
 	_ = context
 	_ = pointer
 	_ = fmt
