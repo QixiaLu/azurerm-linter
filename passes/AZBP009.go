@@ -111,7 +111,7 @@ func runAZBP009(pass *analysis.Pass) (interface{}, error) {
 
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
 		pos := pass.Fset.Position(n.Pos())
-		if !loader.ShouldReport(pos.Filename, pos.Line) {
+		if !loader.ShouldReport(pos.Filename, pos.Line) || ignorer.ShouldIgnore(azbp009Name, n) {
 			return
 		}
 
@@ -127,9 +127,6 @@ func runAZBP009(pass *analysis.Pass) (interface{}, error) {
 					if valueSpec, ok := spec.(*ast.ValueSpec); ok {
 						for _, name := range valueSpec.Names {
 							if importNames[name.Name] {
-								if ignorer.ShouldIgnore(azbp009Name, name) {
-									continue
-								}
 								pass.Reportf(name.Pos(), "%s: variable '%s' shadows imported package name\n",
 									azbp009Name, helper.FixedCode(name.Name))
 							}
@@ -142,9 +139,6 @@ func runAZBP009(pass *analysis.Pass) (interface{}, error) {
 				for _, lhs := range node.Lhs {
 					if ident, ok := lhs.(*ast.Ident); ok {
 						if importNames[ident.Name] {
-							if ignorer.ShouldIgnore(azbp009Name, ident) {
-								continue
-							}
 							pass.Reportf(ident.Pos(), "%s: variable '%s' shadows imported package name\n",
 								azbp009Name, helper.FixedCode(ident.Name))
 						}

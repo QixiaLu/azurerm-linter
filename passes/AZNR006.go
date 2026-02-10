@@ -84,10 +84,7 @@ func runAZNR006(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		pos := pass.Fset.Position(ifStmt.Pos())
-		if !loader.ShouldReport(pos.Filename, pos.Line) {
-			return
-		}
-		if ignorer.ShouldIgnore(aznr006Name, ifStmt) {
+		if !loader.ShouldReport(pos.Filename, pos.Line) || ignorer.ShouldIgnore(aznr006Name, ifStmt) {
 			return
 		}
 

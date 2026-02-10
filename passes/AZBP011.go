@@ -100,10 +100,7 @@ func runAZBP011(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		pos := pass.Fset.Position(callExpr.Pos())
-		if !loader.ShouldReport(pos.Filename, pos.Line) {
-			return
-		}
-		if ignorer.ShouldIgnore(azbp011Name, callExpr) {
+		if !loader.ShouldReport(pos.Filename, pos.Line) || ignorer.ShouldIgnore(azbp011Name, callExpr) {
 			return
 		}
 
