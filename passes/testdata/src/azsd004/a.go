@@ -43,8 +43,8 @@ func attributes() map[string]*schema.Schema {
 						Elem: &schema.Resource{
 							Schema: map[string]*schema.Schema{
 								"property1": { // want `AZSD004`
-									Type:         schema.TypeString,
-									Required:     true,
+									Type:     schema.TypeString,
+									Required: true,
 								},
 								"property2": {
 									Type:     schema.TypeInt,

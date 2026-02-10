@@ -18,6 +18,9 @@ For additional information about each check, see the documentation in passes's d
 | AZBP006 | check for redundant `nil` assignments to pointer fields in struct literals |
 | AZBP007 | check for string slices initialized using `make([]string, 0)` instead of `[]string{}` |
 | AZBP008 | check for `ValidateFunc` uses `PossibleValuesFor*` instead of manual enum listing |
+| AZBP009 | check for variables that use the same name as an imported package |
+| AZBP010 | check for variables that are declared and immediately returned |
+| AZBP011 | check for `strings.EqualFold` usage in enum comparisons |
 
 ### Azure New Resource Checks
 
@@ -28,6 +31,7 @@ For additional information about each check, see the documentation in passes's d
 | AZNR003 | check for `expand*`/`flatten*` functions are defined as receiver methods |This analyzer currently only runs on typed resource/data source |
 | AZNR004 | check for `flatten*` functions returning slices don't return `nil` |
 | AZNR005 | check for registrations are sorted alphabetically |
+| AZNR006 | check that nil checks are performed inside `flatten*` methods |
 
 ### Azure Naming Rule Checks
 
