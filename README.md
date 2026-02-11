@@ -28,7 +28,7 @@ For additional information about each check, see the documentation in passes's d
 |-------|-------------|----------|
 | AZNR001 | check for Schema field ordering | When git filter is on, this analyzer only run on newly created resources/data sources |
 | AZNR002 | check for top-level updatable arguments are included in Update func | This analyzer currently only runs on typed resource |
-| AZNR003 | check for `expand*`/`flatten*` functions are defined as receiver methods |This analyzer currently only runs on typed resource/data source |
+| AZNR003 (DEPRECATED) | check for `expand*`/`flatten*` functions are defined as receiver methods |This analyzer currently only runs on typed resource/data source |
 | AZNR004 | check for `flatten*` functions returning slices don't return `nil` |
 | AZNR005 | check for registrations are sorted alphabetically |
 | AZNR006 | check that nil checks are performed inside `flatten*` methods |
