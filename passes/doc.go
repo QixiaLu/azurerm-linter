@@ -295,6 +295,23 @@
 //	    props.Type = pointer.To(TypeManaged)
 //	}
 //
+// # AZNR007 - Test Resource Name Prefix
+//
+// Reports when top-level name attributes in HCL test configurations do not
+// start with "acctest". Only the first-level name attribute (2-space indentation)
+// inside a resource block is checked.
+//
+// Flagged:
+//
+//	name = "acckv%[1]d"
+//	name = "sdsds"
+//	name = "myresource%d"
+//
+// Correct:
+//
+//	name = "acctestkv%[1]d"
+//	name = "acctestresource%d"
+//
 // # AZNR003 - Expand/Flatten Function Convention
 //
 // Reports when expand* or flatten* functions are defined as global/package-level
