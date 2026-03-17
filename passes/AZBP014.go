@@ -53,7 +53,10 @@ func runAZBP014(pass *analysis.Pass) (interface{}, error) {
 
 	nodeFilter := []ast.Node{(*ast.CompositeLit)(nil)}
 	insp.Preorder(nodeFilter, func(n ast.Node) {
-		lit := n.(*ast.CompositeLit)
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return
+		}
 
 		// Only empty literals (no field initializers)
 		if len(lit.Elts) != 0 {

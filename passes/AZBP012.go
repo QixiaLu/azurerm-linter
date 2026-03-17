@@ -61,14 +61,20 @@ func runAZBP012(pass *analysis.Pass) (interface{}, error) {
 	elseIfs := map[*ast.IfStmt]bool{}
 	nodeFilter := []ast.Node{(*ast.IfStmt)(nil)}
 	insp.Preorder(nodeFilter, func(n ast.Node) {
-		ifStmt := n.(*ast.IfStmt)
+		ifStmt, ok := n.(*ast.IfStmt)
+		if !ok {
+			return
+		}
 		if inner, ok := ifStmt.Else.(*ast.IfStmt); ok {
 			elseIfs[inner] = true
 		}
 	})
 
 	insp.Preorder(nodeFilter, func(n ast.Node) {
-		ifStmt := n.(*ast.IfStmt)
+		ifStmt, ok := n.(*ast.IfStmt)
+		if !ok {
+			return
+		}
 
 		if elseIfs[ifStmt] {
 			return

@@ -62,7 +62,10 @@ func runAZBP013(pass *analysis.Pass) (interface{}, error) {
 
 	nodeFilter := []ast.Node{(*ast.IfStmt)(nil)}
 	insp.Preorder(nodeFilter, func(n ast.Node) {
-		ifStmt := n.(*ast.IfStmt)
+		ifStmt, ok := n.(*ast.IfStmt)
+		if !ok {
+			return
+		}
 
 		pos := pass.Fset.Position(ifStmt.Pos())
 		if !loader.ShouldReport(pos.Filename, pos.Line) {
@@ -169,7 +172,7 @@ func isExprPrefix(a, b string) bool {
 }
 
 // bodyReturnsError checks if the body contains a return with fmt.Errorf or errors.New.
-func bodyReturnsError(body *ast.BlockStmt, pass *analysis.Pass) bool {
+func bodyReturnsError(body *ast.BlockStmt, _ *analysis.Pass) bool {
 	found := false
 	ast.Inspect(body, func(n ast.Node) bool {
 		if found {
