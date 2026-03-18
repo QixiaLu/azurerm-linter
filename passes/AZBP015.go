@@ -114,7 +114,7 @@ func runAZBP015(pass *analysis.Pass) (interface{}, error) {
 				}
 
 				pass.Reportf(callExpr.Pos(), "%s: check.That().Key().HasValue() is unnecessary when ImportStep is present - the ImportStep validates that all config values match.\n",
-						azbp015Name)
+					azbp015Name)
 
 				return true
 			})
