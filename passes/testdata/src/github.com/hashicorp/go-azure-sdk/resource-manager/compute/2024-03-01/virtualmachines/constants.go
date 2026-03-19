@@ -31,3 +31,23 @@ func PossibleValuesForOperatingSystemTypes() []string {
 		string(OperatingSystemTypesWindows),
 	}
 }
+
+type GetOperationOptions struct {
+	Expand *string
+}
+
+func DefaultGetOperationOptions() GetOperationOptions {
+	return GetOperationOptions{}
+}
+
+type DeleteOperationOptions struct {
+	Force *bool
+}
+
+func DefaultDeleteOperationOptions() DeleteOperationOptions {
+	return DeleteOperationOptions{}
+}
+
+type ListOperationOptions struct {
+	Filter *string
+}

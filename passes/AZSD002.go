@@ -99,8 +99,8 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		// Only check TypeList fields
-		if !schemaInfo.IsType(schema.SchemaValueTypeList) {
+		// Only check TypeList fields with max items == 1
+		if !schemaInfo.IsType(schema.SchemaValueTypeList) || schemaInfo.Schema.MaxItems != 1 {
 			continue
 		}
 
