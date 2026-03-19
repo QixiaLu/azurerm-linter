@@ -76,3 +76,21 @@ data "azurerm_search_service" "test" {
 }
 `
 }
+
+func validPrivateDnsZone() {
+	_ = `
+resource "azurerm_private_dns_zone" "test" {
+  name                = "privatelink.azuredatabricks.net"
+  resource_group_name = azurerm_resource_group.test.name
+}
+`
+}
+
+func validPrivateDnsZoneNonAcctest() {
+	_ = `
+resource "azurerm_private_dns_zone" "test" {
+  name                = "myzone"
+  resource_group_name = azurerm_resource_group.test.name
+}
+`
+}

@@ -33,6 +33,8 @@ Valid usage:
 
   name = "acctestkv%[1]d"
   name = "acctestresource%d"
+
+Excluded resource types: azurerm_private_dns_zone (name is a domain, not a test identifier).
 `
 
 const aznr007Name = "AZNR007"
@@ -49,7 +51,11 @@ var AZNR007Analyzer = &analysis.Analyzer{
 // Only matches name at exactly 2 spaces of indentation (top-level inside a resource block).
 var aznr007NameValueRegex = regexp.MustCompile(`(?m)^  name\s*=\s*"([^"]+)"`)
 
-var aznr007BlockDeclRegex = regexp.MustCompile(`(?m)^(\w+)\s+"`)
+var aznr007BlockDeclRegex = regexp.MustCompile(`(?m)^(\w+)\s+"([^"]+)"`)
+
+var aznr007ExcludedResourceTypes = map[string]bool{
+	"azurerm_private_dns_zone": true,
+}
 
 func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
@@ -97,7 +103,11 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 		matches := aznr007NameValueRegex.FindAllStringSubmatchIndex(value, -1)
 		blockDecls := aznr007BlockDeclRegex.FindAllStringSubmatchIndex(value, -1)
 		for _, loc := range matches {
-			if !isInsideResourceBlock(loc[0], blockDecls, value) {
+			resourceType := enclosingResourceType(loc[0], blockDecls, value)
+			if resourceType == "" {
+				continue
+			}
+			if aznr007ExcludedResourceTypes[resourceType] {
 				continue
 			}
 
@@ -127,12 +137,16 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-// isInsideResourceBlock checks whether the nearest preceding block declaration is a resource block.
-func isInsideResourceBlock(pos int, blockDecls [][]int, value string) bool {
+// enclosingResourceType returns the resource type (e.g. "azurerm_resource_group") if the
+// position is inside a resource block, or "" if it is not inside a resource block.
+func enclosingResourceType(pos int, blockDecls [][]int, value string) string {
 	for i := len(blockDecls) - 1; i >= 0; i-- {
 		if blockDecls[i][0] < pos {
-			return value[blockDecls[i][2]:blockDecls[i][3]] == "resource"
+			if value[blockDecls[i][2]:blockDecls[i][3]] == "resource" {
+				return value[blockDecls[i][4]:blockDecls[i][5]]
+			}
+			return ""
 		}
 	}
-	return false
+	return ""
 }
