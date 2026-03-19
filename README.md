@@ -66,6 +66,15 @@ For additional information about each check, see the documentation in passes's d
 
 This tool must be compiled with the **same Go version** required by `terraform-provider-azurerm`. Check the Go version in `terraform-provider-azurerm/go.mod`.
 
+> **Important:** The Go version used to build the linter must match the Go version on your system. Because the linter uses `go/packages` to load and analyze source code, a version mismatch (e.g., binary built with Go 1.25 but system has Go 1.26) will cause errors like:
+> ```
+> file requires newer Go version go1.26 (application built with go1.25)
+> ```
+> If you encounter this, rebuild from source with your current Go version:
+> ```bash
+> go install github.com/qixialu/azurerm-linter@latest
+> ```
+
 **Windows users:** Enable long paths to avoid "Filename too long" errors when using `--pr`:
 ```bash
 git config --global core.longpaths true
