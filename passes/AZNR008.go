@@ -98,7 +98,11 @@ func runAZNR008(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		pass.Reportf(lit.Pos(), "%s: do not %s in test configs\n",
+		reportPos := lit.Pos()
+		if isRawString && matchLine > pos.Line {
+			reportPos = pass.Fset.File(lit.Pos()).LineStart(matchLine)
+		}
+		pass.Reportf(reportPos, "%s: do not %s in test configs\n",
 			aznr008Name, helper.IssueLine("hardcode resource IDs"))
 	})
 

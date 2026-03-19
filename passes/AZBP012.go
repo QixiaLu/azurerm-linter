@@ -2,6 +2,7 @@ package passes
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 
 	"github.com/bflad/tfproviderlint/passes/commentignore"
@@ -133,6 +134,9 @@ func simpleIfElseSameTarget(ifStmt *ast.IfStmt) string {
 func singleAssignTarget(stmt ast.Stmt) string {
 	assign, ok := stmt.(*ast.AssignStmt)
 	if !ok {
+		return ""
+	}
+	if assign.Tok != token.ASSIGN {
 		return ""
 	}
 	if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {

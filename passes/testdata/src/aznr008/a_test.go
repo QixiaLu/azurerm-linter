@@ -44,3 +44,17 @@ func validPartialPath() {
   path = "/subscriptions/"
 `
 }
+
+func invalidMultilineRaw() {
+	_ = `
+resource "azurerm_example" "test" {
+  some_id = "/subscriptions/049e5678-fbb1-4861-93f3-7528bd0779fd/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet1"` // want `AZNR008`
+}
+
+func invalidMultilineRawDeep() {
+	_ = `
+resource "azurerm_example" "test" {
+  name     = "acctestexample"
+  location = "westeurope"
+  target   = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm1"` // want `AZNR008`
+}

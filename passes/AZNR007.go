@@ -19,8 +19,9 @@ const AZNR007Doc = `check that resource names in test configurations start with 
 
 The AZNR007 analyzer reports when top-level name attributes in HCL test
 configurations do not start with "acctest". Only the first-level name attribute
-(2-space indentation) inside a resource block is checked. Nested block names
-(e.g. load_balancer name, ip_restriction name) are not checked.
+(2-space indentation) inside a resource block is checked. Data source blocks
+(data "..." "...") and nested block names (e.g. load_balancer name,
+ip_restriction name) are not checked.
 
 Example violations:
 
@@ -47,6 +48,8 @@ var AZNR007Analyzer = &analysis.Analyzer{
 // Uses multiline mode so ^ matches the start of each line within the string.
 // Only matches name at exactly 2 spaces of indentation (top-level inside a resource block).
 var aznr007NameValueRegex = regexp.MustCompile(`(?m)^  name\s*=\s*"([^"]+)"`)
+
+var aznr007BlockDeclRegex = regexp.MustCompile(`(?m)^(\w+)\s+"`)
 
 func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
@@ -92,7 +95,12 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 
 		// Find name = "..." patterns in the string
 		matches := aznr007NameValueRegex.FindAllStringSubmatchIndex(value, -1)
+		blockDecls := aznr007BlockDeclRegex.FindAllStringSubmatchIndex(value, -1)
 		for _, loc := range matches {
+			if !isInsideResourceBlock(loc[0], blockDecls, value) {
+				continue
+			}
+
 			nameValue := value[loc[2]:loc[3]]
 
 			matchLine := pos.Line
@@ -105,7 +113,11 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if !strings.HasPrefix(nameValue, "acctest") {
-				pass.Reportf(lit.Pos(), "%s: resource name %q should start with %s\n",
+				reportPos := lit.Pos()
+				if isRawString && matchLine > pos.Line {
+					reportPos = pass.Fset.File(lit.Pos()).LineStart(matchLine)
+				}
+				pass.Reportf(reportPos, "%s: resource name %q should start with %s\n",
 					aznr007Name, nameValue,
 					helper.FixedCode(`"acctest"`))
 			}
@@ -113,4 +125,14 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 	})
 
 	return nil, nil
+}
+
+// isInsideResourceBlock checks whether the nearest preceding block declaration is a resource block.
+func isInsideResourceBlock(pos int, blockDecls [][]int, value string) bool {
+	for i := len(blockDecls) - 1; i >= 0; i-- {
+		if blockDecls[i][0] < pos {
+			return value[blockDecls[i][2]:blockDecls[i][3]] == "resource"
+		}
+	}
+	return false
 }
