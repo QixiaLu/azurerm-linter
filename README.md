@@ -21,6 +21,10 @@ For additional information about each check, see the documentation in passes's d
 | AZBP009 | check for variables that use the same name as an imported package |
 | AZBP010 | check for variables that are declared and immediately returned |
 | AZBP011 | check for `strings.EqualFold` usage in enum comparisons |
+| AZBP012 | check for unnecessary else blocks that can be avoided by setting a default |
+| AZBP013 | check for chained nil checks that should be split into separate if statements |
+| AZBP014 | check for empty `OperationOptions` literals when a `Default*` constructor exists |
+| AZBP015 | check that `check.That().Key().HasValue()` is unnecessary when `ImportStep` is used |
 
 ### Azure New Resource Checks
 
@@ -32,6 +36,8 @@ For additional information about each check, see the documentation in passes's d
 | AZNR004 | check for `flatten*` functions returning slices don't return `nil` |
 | AZNR005 | check for registrations are sorted alphabetically |
 | AZNR006 | check that nil checks are performed inside `flatten*` methods |
+| AZNR007 | check that resource names in test configurations start with `"acctest"` |
+| AZNR008 | check for hardcoded resource IDs in test configurations |
 
 ### Azure Naming Rule Checks
 
