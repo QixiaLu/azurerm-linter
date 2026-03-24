@@ -42,7 +42,7 @@ func (l *LocalGitLoader) Load() (*ChangeSet, error) {
 
 // processDiffWithWorktree compares a commit with the current worktree using git diff
 func processDiffWithWorktree(cs *ChangeSet, diffRef string) error {
-	cmd := exec.Command("git", "diff", diffRef)
+	cmd := exec.Command("git", "diff", "--no-ext-diff", diffRef)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to run git diff: %w, output: %s", err, strings.TrimSpace(string(output)))
