@@ -126,6 +126,7 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 		optionalFieldsCount := 0
 		hasRequiredField := false
 		hasAtLeastOneOfOrExactlyOneOf := false
+		hasDefaultValue := false
 		for _, elt := range nestedSchemaMap.Elts {
 			kv, ok := elt.(*ast.KeyValueExpr)
 			if !ok {
@@ -148,6 +149,12 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 				break
 			}
 
+			// Skip if any nested field has a default value
+			if nestedInfo.DeclaresField(schema.SchemaFieldDefault) {
+				hasDefaultValue = true
+				break
+			}
+
 			if nestedInfo.Schema.Optional {
 				// Check if at least one optional field has AtLeastOneOf
 				atLeastOneOfKV := nestedInfo.Fields[schema.SchemaFieldAtLeastOneOf]
@@ -160,9 +167,9 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 			}
 		}
 
-		// Only report if there are no required fields, multiple optional fields,
+		// Only report if there are no required fields, no default values, multiple optional fields,
 		// and none of them have AtLeastOneOf set
-		if !hasRequiredField && !hasAtLeastOneOfOrExactlyOneOf && optionalFieldsCount >= 2 {
+		if !hasRequiredField && !hasDefaultValue && !hasAtLeastOneOfOrExactlyOneOf && optionalFieldsCount >= 2 {
 			pos := pass.Fset.Position(schemaLit.Pos())
 			if loader.ShouldReport(pos.Filename, pos.Line) {
 				if propertyName := cached.PropertyName; propertyName != "" {

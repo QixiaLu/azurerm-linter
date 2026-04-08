@@ -126,6 +126,19 @@ func simpleIfElseSameTarget(ifStmt *ast.IfStmt) string {
 	if ifAssign != elseAssign {
 		return ""
 	}
+
+	// Skip when the else branch RHS is a function call (it would be
+	// called unconditionally if hoisted as a default), unless both
+	// branches call the exact same function — in that case the
+	// refactoring is still safe and worthwhile.
+	elseCall := rhsCallExpr(elseBlock.List[0])
+	if elseCall != nil {
+		ifCall := rhsCallExpr(ifStmt.Body.List[0])
+		if ifCall == nil || types.ExprString(ifCall.Fun) != types.ExprString(elseCall.Fun) {
+			return ""
+		}
+	}
+
 	return ifAssign
 }
 
@@ -143,4 +156,18 @@ func singleAssignTarget(stmt ast.Stmt) string {
 		return ""
 	}
 	return types.ExprString(assign.Lhs[0])
+}
+
+// rhsCallExpr returns the CallExpr on the RHS if stmt is a single assignment
+// whose RHS is a function call, or nil otherwise.
+func rhsCallExpr(stmt ast.Stmt) *ast.CallExpr {
+	assign, ok := stmt.(*ast.AssignStmt)
+	if !ok || len(assign.Rhs) != 1 {
+		return nil
+	}
+	call, ok := assign.Rhs[0].(*ast.CallExpr)
+	if !ok {
+		return nil
+	}
+	return call
 }
