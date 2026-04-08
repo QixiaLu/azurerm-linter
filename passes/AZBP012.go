@@ -165,6 +165,9 @@ func rhsCallExpr(stmt ast.Stmt) *ast.CallExpr {
 	if !ok || len(assign.Rhs) != 1 {
 		return nil
 	}
-	call, _ := assign.Rhs[0].(*ast.CallExpr)
+	call, ok := assign.Rhs[0].(*ast.CallExpr)
+	if !ok {
+		return nil
+	}
 	return call
 }
