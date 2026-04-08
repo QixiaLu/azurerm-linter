@@ -55,6 +55,7 @@ var aznr007BlockDeclRegex = regexp.MustCompile(`(?m)^(\w+)\s+"([^"]+)"`)
 
 var aznr007ExcludedResourceTypes = map[string]bool{
 	"azurerm_private_dns_zone": true,
+	"azurerm_subnet": true,
 }
 
 func runAZNR007(pass *analysis.Pass) (interface{}, error) {
