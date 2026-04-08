@@ -110,6 +110,19 @@ func validCase6(model Model) {
 	useString(mode)
 }
 
+func validCase7(model Model) {
+	var agentProfile string
+	if model.IsEnabled {
+		agentProfile = expandStateful(model)
+	} else {
+		agentProfile = expandStateless(model)
+	}
+	useString(agentProfile)
+}
+
+func expandStateful(m Model) string  { return "stateful" }
+func expandStateless(m Model) string { return "stateless" }
+
 func use(p Parameters)   {}
 func useString(s string) {}
 func doSomething()       {}
