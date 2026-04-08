@@ -68,6 +68,12 @@ func runAZSD001(pass *analysis.Pass) (interface{}, error) {
 		fileCommentsMap[filename] = f.Comments
 	}
 
+	// Build a lookup map for nested schema lookups
+	schemaInfoByLit := make(map[*ast.CompositeLit]*localschema.LocalSchemaInfoWithName)
+	for _, cached := range schemaInfoList {
+		schemaInfoByLit[cached.Info.AstCompositeLit] = cached
+	}
+
 	// Iterate over cached schema infos
 	for _, cached := range schemaInfoList {
 		schemaInfo := cached.Info
@@ -100,12 +106,29 @@ func runAZSD001(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		// Count properties in the nested schema
+		// Count properties in the nested schema and check for defaults
 		propertyCount := 0
+		hasDefaultValue := false
 		for _, elt := range nestedSchemaMap.Elts {
-			if _, ok := elt.(*ast.KeyValueExpr); ok {
-				propertyCount++
+			kv, ok := elt.(*ast.KeyValueExpr)
+			if !ok {
+				continue
 			}
+			propertyCount++
+
+			// Check if nested field has a default value
+			if nestedSchemaLit, ok := kv.Value.(*ast.CompositeLit); ok {
+				if nestedCached, exists := schemaInfoByLit[nestedSchemaLit]; exists {
+					if nestedCached.Info.DeclaresField(schema.SchemaFieldDefault) {
+						hasDefaultValue = true
+					}
+				}
+			}
+		}
+
+		// Skip if any nested field has a default value
+		if hasDefaultValue {
+			continue
 		}
 
 		// If only one property, check for any explanatory comment
