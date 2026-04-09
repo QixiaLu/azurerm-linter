@@ -24,7 +24,7 @@ For additional information about each check, see the documentation in passes's d
 | AZBP012 | check for unnecessary else blocks that can be avoided by setting a default |
 | AZBP013 | check for chained nil checks that should be split into separate if statements |
 | AZBP014 | check for empty `OperationOptions` literals when a `Default*` constructor exists |
-| AZBP015 | check that `check.That().Key().HasValue()` is unnecessary when `ImportStep` is used |
+| AZBP015 (DEPRECATED) | check that `check.That().Key().HasValue()` is unnecessary when `ImportStep` is used |
 
 ### Azure New Resource Checks
 
