@@ -32,6 +32,7 @@ type ChangeSet struct {
 	changedLines map[string]map[int]bool
 	changedFiles map[string]bool
 	newFiles     map[string]bool
+	fileFallback map[string]bool
 }
 
 // NewChangeSet creates a new empty ChangeSet
@@ -40,6 +41,7 @@ func NewChangeSet() *ChangeSet {
 		changedLines: make(map[string]map[int]bool),
 		changedFiles: make(map[string]bool),
 		newFiles:     make(map[string]bool),
+		fileFallback: make(map[string]bool),
 	}
 }
 
@@ -62,6 +64,7 @@ type LoaderOptions struct {
 func LoadChanges(opts LoaderOptions) (*ChangeSet, error) {
 	// Check if user explicitly disabled filtering
 	if opts.NoFilter {
+		globalChangeSet = nil
 		log.Println("Change filtering disabled (--no-filter) - analyzing all files")
 		return nil, nil
 	}
@@ -206,20 +209,24 @@ func CleanupWorktree() {
 
 // ShouldReport checks if a specific line in a file should be reported
 func (cs *ChangeSet) ShouldReport(filename string, line int) bool {
-	if len(cs.changedLines) == 0 {
-		return false
-	}
-
 	relPath := normalizeFilePath(filename)
 	if !isServiceFile(relPath) {
 		return false
 	}
 
-	if lineMap, exists := cs.changedLines[relPath]; exists {
+	if !cs.changedFiles[relPath] {
+		return false
+	}
+
+	if cs.fileFallback[relPath] {
+		return true
+	}
+
+	if lineMap, exists := cs.changedLines[relPath]; exists && len(lineMap) > 0 {
 		return lineMap[line]
 	}
 
-	return false
+	return true
 }
 
 // IsFileChanged checks if a file has any changes
@@ -313,22 +320,36 @@ func (cs *ChangeSet) parsePatch(filePath string, patchContent string) error {
 	scanner := bufio.NewScanner(strings.NewReader(patchContent))
 	var currentLine int
 	inHunk := false
+	hunkHasAddition := false
+	hunkHasDeletion := false
 
 	// Initialize the map once
 	if cs.changedLines[filePath] == nil {
 		cs.changedLines[filePath] = make(map[int]bool)
 	}
 
+	finishHunk := func() {
+		if hunkHasDeletion && !hunkHasAddition {
+			cs.fileFallback[filePath] = true
+		}
+	}
+
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		if matches := hunkRegex.FindStringSubmatch(line); matches != nil {
+			if inHunk {
+				finishHunk()
+			}
+
 			startLine, err := strconv.Atoi(matches[1])
 			if err != nil {
 				continue
 			}
 			currentLine = startLine
 			inHunk = true
+			hunkHasAddition = false
+			hunkHasDeletion = false
 			continue
 		}
 		if !inHunk {
@@ -343,11 +364,18 @@ func (cs *ChangeSet) parsePatch(filePath string, patchContent string) error {
 		prefix := line[0]
 		switch prefix {
 		case '+':
+			hunkHasAddition = true
 			cs.changedLines[filePath][currentLine] = true
 			currentLine++
+		case '-':
+			hunkHasDeletion = true
 		case ' ':
 			currentLine++
 		}
+	}
+
+	if inHunk {
+		finishHunk()
 	}
 
 	return scanner.Err()
