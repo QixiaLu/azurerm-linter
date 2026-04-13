@@ -1,9 +1,12 @@
 package loader
 
 import (
+	"bufio"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
@@ -32,6 +35,10 @@ func (l *LocalGitLoader) Load() (*ChangeSet, error) {
 
 	if err := processDiffWithWorktree(cs, targetCommit); err != nil {
 		return nil, fmt.Errorf("failed to parse diff: %w", err)
+	}
+
+	if err := addUntrackedFiles(cs); err != nil {
+		log.Printf("Warning: failed to detect untracked files: %v", err)
 	}
 
 	log.Printf("✓ Found %d changed files with %d changed lines",
@@ -172,6 +179,81 @@ func getUpstreamFromConfig(repo *git.Repository, currentBranch string) (remote, 
 	}
 
 	return remote, branch, true
+}
+
+// addUntrackedFiles finds untracked Go files and adds them to the ChangeSet.
+// This ensures new files that haven't been staged yet are still analyzed.
+func addUntrackedFiles(cs *ChangeSet) error {
+	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard", "--", "*.go")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git ls-files failed: %w", err)
+	}
+
+	lines := strings.TrimSpace(string(output))
+	if lines == "" {
+		return nil
+	}
+
+	var added int
+	for _, filePath := range strings.Split(lines, "\n") {
+		filePath = strings.TrimSpace(filePath)
+		if filePath == "" {
+			continue
+		}
+
+		// Normalize to forward slashes for consistency
+		filePath = filepath.ToSlash(filePath)
+
+		if !isServiceFile(filePath) {
+			continue
+		}
+
+		normalized := normalizeFilePath(filePath)
+
+		// Skip if already tracked (e.g., from git diff)
+		if cs.changedFiles[normalized] {
+			continue
+		}
+
+		lineCount, err := countFileLines(filePath)
+		if err != nil {
+			log.Printf("Warning: failed to read untracked file %s: %v", filePath, err)
+			continue
+		}
+
+		// Mark every line as changed
+		cs.changedLines[normalized] = make(map[int]bool, lineCount)
+		for i := 1; i <= lineCount; i++ {
+			cs.changedLines[normalized][i] = true
+		}
+
+		cs.changedFiles[normalized] = true
+		cs.newFiles[normalized] = true
+		added++
+	}
+
+	if added > 0 {
+		log.Printf("Included %d untracked file(s)", added)
+	}
+
+	return nil
+}
+
+// countFileLines counts the number of lines in a file
+func countFileLines(filePath string) (int, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	count := 0
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		count++
+	}
+	return count, scanner.Err()
 }
 
 // autoDetectRemote auto-detects the remote
