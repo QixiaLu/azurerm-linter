@@ -1,12 +1,11 @@
 package loader
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
@@ -190,22 +189,10 @@ func addUntrackedFiles(cs *ChangeSet) error {
 		return fmt.Errorf("git ls-files failed: %w", err)
 	}
 
-	lines := strings.TrimSpace(string(output))
-	if lines == "" {
-		return nil
-	}
-
 	var added int
-	for _, filePath := range strings.Split(lines, "\n") {
+	for _, filePath := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 		filePath = strings.TrimSpace(filePath)
-		if filePath == "" {
-			continue
-		}
-
-		// Normalize to forward slashes for consistency
-		filePath = filepath.ToSlash(filePath)
-
-		if !isServiceFile(filePath) {
+		if filePath == "" || !isServiceFile(filePath) {
 			continue
 		}
 
@@ -216,13 +203,14 @@ func addUntrackedFiles(cs *ChangeSet) error {
 			continue
 		}
 
-		lineCount, err := countFileLines(filePath)
+		content, err := os.ReadFile(filePath)
 		if err != nil {
 			log.Printf("Warning: failed to read untracked file %s: %v", filePath, err)
 			continue
 		}
 
 		// Mark every line as changed
+		lineCount := bytes.Count(content, []byte("\n")) + 1
 		cs.changedLines[normalized] = make(map[int]bool, lineCount)
 		for i := 1; i <= lineCount; i++ {
 			cs.changedLines[normalized][i] = true
@@ -238,22 +226,6 @@ func addUntrackedFiles(cs *ChangeSet) error {
 	}
 
 	return nil
-}
-
-// countFileLines counts the number of lines in a file
-func countFileLines(filePath string) (int, error) {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
-
-	count := 0
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		count++
-	}
-	return count, scanner.Err()
 }
 
 // autoDetectRemote auto-detects the remote
