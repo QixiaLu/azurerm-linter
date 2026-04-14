@@ -1,8 +1,10 @@
 package loader
 
 import (
+	"bytes"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -32,6 +34,10 @@ func (l *LocalGitLoader) Load() (*ChangeSet, error) {
 
 	if err := processDiffWithWorktree(cs, targetCommit); err != nil {
 		return nil, fmt.Errorf("failed to parse diff: %w", err)
+	}
+
+	if err := addUntrackedFiles(cs); err != nil {
+		log.Printf("Warning: failed to detect untracked files: %v", err)
 	}
 
 	log.Printf("✓ Found %d changed files with %d changed lines",
@@ -172,6 +178,54 @@ func getUpstreamFromConfig(repo *git.Repository, currentBranch string) (remote, 
 	}
 
 	return remote, branch, true
+}
+
+// addUntrackedFiles finds untracked Go files and adds them to the ChangeSet.
+// This ensures new files that haven't been staged yet are still analyzed.
+func addUntrackedFiles(cs *ChangeSet) error {
+	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard", "--", "*.go")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git ls-files failed: %w", err)
+	}
+
+	var added int
+	for _, filePath := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		filePath = strings.TrimSpace(filePath)
+		if filePath == "" || !isServiceFile(filePath) {
+			continue
+		}
+
+		normalized := normalizeFilePath(filePath)
+
+		// Skip if already tracked (e.g., from git diff)
+		if cs.changedFiles[normalized] {
+			continue
+		}
+
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			log.Printf("Warning: failed to read untracked file %s: %v", filePath, err)
+			continue
+		}
+
+		// Mark every line as changed
+		lineCount := bytes.Count(content, []byte("\n")) + 1
+		cs.changedLines[normalized] = make(map[int]bool, lineCount)
+		for i := 1; i <= lineCount; i++ {
+			cs.changedLines[normalized][i] = true
+		}
+
+		cs.changedFiles[normalized] = true
+		cs.newFiles[normalized] = true
+		added++
+	}
+
+	if added > 0 {
+		log.Printf("Included %d untracked file(s)", added)
+	}
+
+	return nil
 }
 
 // autoDetectRemote auto-detects the remote
