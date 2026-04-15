@@ -126,7 +126,7 @@ azurerm-linter --no-filter ./internal/services/...
 --help             # Show help
 ```
 
-**Note**: By default, only changed lines are analyzed. Use `--no-filter` to check everything.
+**Note**: By default, only changed lines are analyzed. Deleted lines are excluded from the diff so that users are not forced to fix pre-existing issues in unchanged code. Use `--no-filter` to check everything.
 
 ### Output
 
@@ -187,7 +187,7 @@ Actual order:
 
 #### JSON Output
 
-Use `--output json` to get structured JSON output, useful for CI pipelines and editor integrations:
+Use `--output json` to get structured JSON output:
 
 ```bash
 azurerm-linter --output json
