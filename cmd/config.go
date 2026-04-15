@@ -118,7 +118,6 @@ func ParseFlags() (*Config, error) {
 }
 
 // ShortVersion returns a compact version string (e.g. "v0.4.2" or "dev")
-// suitable for JSON output and programmatic use.
 func ShortVersion() string {
 	v := Version
 	if strings.HasPrefix(v, "version ") {
