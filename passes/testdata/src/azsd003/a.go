@@ -4,6 +4,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
+var schemaBuckets = []map[string]*schema.Schema{
+	validCases(),
+	invalidCases(),
+	invalidCasesViaVariable(),
+}
+
 func validCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"field_with_exactlyone": {

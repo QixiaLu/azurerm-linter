@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/reporting"
@@ -31,10 +32,15 @@ var AZRE001Analyzer = &analysis.Analyzer{
 	Name:     azre001Name,
 	Doc:      AZRE001Doc,
 	Run:      runAZRE001,
-	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	Requires: []*analysis.Analyzer{inspect.Analyzer, commentignore.Analyzer},
 }
 
 func runAZRE001(pass *analysis.Pass) (interface{}, error) {
+	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	if !ok {
+		return nil, nil
+	}
+
 	// Pre-filter: Build set of changed files that import "fmt"
 	relevantFiles := make(map[string]bool)
 	for _, f := range pass.Files {
@@ -122,6 +128,10 @@ func runAZRE001(pass *analysis.Pass) (interface{}, error) {
 		// Check if the string value contains any placeholders (%v, %s, %d, %+v, etc.)
 		// If it doesn't contain %, it's a fixed string and should use errors.New()
 		if !strings.Contains(formatStr, "%") {
+			if ignorer.ShouldIgnore(azre001Name, call) {
+				return
+			}
+
 			reporting.Reportf(pass, reporting.ReportOptions{
 				Rule:          azre001Name,
 				ReportPos:     call.Pos(),

@@ -94,3 +94,20 @@ resource "azurerm_private_dns_zone" "test" {
 }
 `
 }
+
+func validInterpolatedName() {
+	_ = `
+resource "azurerm_storage_account" "test" {
+  name = "${azurerm_resource_group.test.name}-replica"
+}
+`
+}
+
+func validExcludedConfigurationName() {
+	_ = `
+resource "azurerm_postgresql_flexible_server_configuration" "test" {
+  name  = "log_checkpoints"
+  value = "on"
+}
+`
+}

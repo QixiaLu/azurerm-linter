@@ -3,6 +3,7 @@ package loader
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -33,6 +34,9 @@ func (l *LocalGitLoader) Load() (*ChangeSet, error) {
 	if err := processDiffWithWorktree(cs, targetCommit); err != nil {
 		return nil, fmt.Errorf("failed to parse diff: %w", err)
 	}
+	if err := addUntrackedFiles(cs); err != nil {
+		return nil, fmt.Errorf("failed to include untracked files: %w", err)
+	}
 
 	log.Printf("✓ Found %d changed files with %d changed lines",
 		len(cs.changedFiles), cs.getTotalChangedLines())
@@ -54,6 +58,52 @@ func processDiffWithWorktree(cs *ChangeSet, diffRef string) error {
 	}
 
 	return cs.parseDiffOutput(diffOutput)
+}
+
+func addUntrackedFiles(cs *ChangeSet) error {
+	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to list untracked files: %w, output: %s", err, strings.TrimSpace(string(output)))
+	}
+
+	fileNames := strings.Fields(string(output))
+	return markUntrackedFiles(cs, fileNames)
+}
+
+func markUntrackedFiles(cs *ChangeSet, fileNames []string) error {
+	for _, fileName := range fileNames {
+		normalizedPath := normalizeFilePath(fileName)
+		if !isServiceFile(normalizedPath) {
+			continue
+		}
+
+		content, err := os.ReadFile(fileName)
+		if err != nil {
+			return fmt.Errorf("failed to read untracked file %s: %w", fileName, err)
+		}
+
+		cs.changedFiles[normalizedPath] = true
+		cs.newFiles[normalizedPath] = true
+
+		lineCount := strings.Count(string(content), "\n")
+		if len(content) > 0 && content[len(content)-1] != '\n' {
+			lineCount++
+		}
+
+		if lineCount == 0 {
+			continue
+		}
+
+		if cs.changedLines[normalizedPath] == nil {
+			cs.changedLines[normalizedPath] = make(map[int]bool, lineCount)
+		}
+		for line := 1; line <= lineCount; line++ {
+			cs.changedLines[normalizedPath][line] = true
+		}
+	}
+
+	return nil
 }
 
 // resolveForLocal resolves the diff reference for comparison.
@@ -87,12 +137,16 @@ func resolveForLocal(repo *git.Repository, remoteName, baseBranch string) (strin
 
 	// Use shell 'git merge-base' command for robust merge-base detection
 	mergeBaseHash, err := getMergeBase(targetRefName, "HEAD")
-	if err != nil {
-		return targetRefName, err
+	return resolveDiffReference(targetRefName, mergeBaseHash, err)
+}
+
+func resolveDiffReference(targetRefName, mergeBaseHash string, mergeBaseErr error) (string, error) {
+	if mergeBaseErr != nil {
+		log.Printf("Warning: git merge-base failed for %s, falling back to direct diff against that ref: %v", targetRefName, mergeBaseErr)
+		return targetRefName, nil
 	}
 
 	log.Printf("Merge-base with %s: %s", targetRefName, mergeBaseHash[:7])
-
 	return mergeBaseHash, nil
 }
 

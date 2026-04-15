@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"strings"
 
+	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/reporting"
@@ -41,21 +42,31 @@ var expectedLicenseLines = []string{
 }
 
 var AZBP005Analyzer = &analysis.Analyzer{
-	Name: azbp005Name,
-	Doc:  AZBP005Doc,
-	Run:  runAZBP005,
+	Name:     azbp005Name,
+	Doc:      AZBP005Doc,
+	Run:      runAZBP005,
+	Requires: []*analysis.Analyzer{commentignore.Analyzer},
 }
 
 func runAZBP005(pass *analysis.Pass) (interface{}, error) {
+	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	if !ok {
+		return nil, nil
+	}
+
 	for _, file := range pass.Files {
-		checkLicenseHeader(pass, file)
+		checkLicenseHeader(pass, file, ignorer)
 	}
 	return nil, nil
 }
 
-func checkLicenseHeader(pass *analysis.Pass, file *ast.File) {
+func checkLicenseHeader(pass *analysis.Pass, file *ast.File, ignorer *commentignore.Ignorer) {
 	filename := pass.Fset.Position(file.Pos()).Filename
 	if !strings.HasSuffix(filename, ".go") || !loader.IsFileChanged(filename) {
+		return
+	}
+
+	if ignorer.ShouldIgnore(azbp005Name, file) || (file.Name != nil && ignorer.ShouldIgnore(azbp005Name, file.Name)) {
 		return
 	}
 

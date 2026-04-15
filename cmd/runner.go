@@ -39,6 +39,9 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 	defer loader.CleanupWorktree()
 	reporting.Reset()
 
+	isJSON := r.Config.OutputFormat == "json"
+	scopeMode := r.detectFilterMode()
+
 	loaderOpts := loader.LoaderOptions{
 		NoFilter:   r.Config.NoFilter,
 		PRNumber:   r.Config.PRNumber,
@@ -73,8 +76,12 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 
 	// Validate we have patterns to analyze
 	if len(patterns) == 0 {
-		log.Println("Error: no packages to analyze")
-		return ExitError
+		if isJSON {
+			r.emitJSON(StatusSuccess, scopeMode, patterns, nil)
+		} else {
+			log.Println("✓ no service package to analyze")
+		}
+		return ExitSuccess
 	}
 
 	log.Printf("Loading packages...")
@@ -84,7 +91,11 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 	}
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {
-		log.Printf("Error: failed to load packages: %v", err)
+		if isJSON {
+			r.emitJSON(StatusError, scopeMode, patterns, nil)
+		} else {
+			log.Printf("Error: failed to load packages: %v", err)
+		}
 		return ExitError
 	}
 
@@ -97,6 +108,9 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 		}
 	})
 	if hasLoadErrors {
+		if isJSON {
+			r.emitJSON(StatusError, scopeMode, patterns, nil)
+		}
 		return ExitError
 	}
 
@@ -106,33 +120,64 @@ func (r *Runner) Run(ctx context.Context) ExitCode {
 	log.Printf("Running analysis...")
 	graph, err := checker.Analyze(passes.AllChecks, pkgs, nil)
 	if err != nil {
-		log.Printf("Error: analysis failed: %v", err)
+		if isJSON {
+			r.emitJSON(StatusError, scopeMode, patterns, nil)
+		} else {
+			log.Printf("Error: analysis failed: %v", err)
+		}
 		return ExitError
 	}
 
-	// Report diagnostics
-	foundIssues := r.reportDiagnostics(graph)
-	if foundIssues {
-		return ExitIssuesFound
+	// Collect and report diagnostics
+	findings := r.collectFindings(graph)
+
+	if isJSON {
+		status := StatusSuccess
+		if len(findings) > 0 {
+			status = StatusIssues
+		}
+		r.emitJSON(status, scopeMode, patterns, findings)
+	} else {
+		for _, f := range findings {
+			fmt.Printf("%s:%d: %s\n", f.Path, f.Line, f.Message)
+		}
+		if len(findings) > 0 {
+			fmt.Printf("Found %d issue(s)\n", len(findings))
+		} else {
+			log.Printf("✓ Analysis completed successfully with no issues found")
+		}
 	}
 
-	log.Printf("✓ Analysis completed successfully with no issues found")
+	if len(findings) > 0 {
+		return ExitIssuesFound
+	}
 	return ExitSuccess
 }
 
-// reportDiagnostics reports all diagnostics and returns true if any issues were found
-func (r *Runner) reportDiagnostics(graph *checker.Graph) bool {
-	var foundIssues bool
-	var issueCount int
+// detectFilterMode returns the FilterMode based on the current config
+func (r *Runner) detectFilterMode() FilterMode {
+	switch {
+	case r.Config.NoFilter:
+		return ModeUnfiltered
+	case r.Config.DiffFile != "":
+		return ModeDiff
+	case r.Config.PRNumber > 0:
+		return ModePR
+	default:
+		return ModeLocal
+	}
+}
+
+// collectFindings walks the analysis graph and returns deduplicated findings.
+func (r *Runner) collectFindings(graph *checker.Graph) []JSONFinding {
+	var findings []JSONFinding
 	// Deduplicate diagnostics by "file:line:column|message"
-	// When Tests=true, the same source file may be analyzed in both main and test packages (when user doesn't mark test pkg as *_test),
-	// causing identical diagnostics to be reported multiple times
-	reported := make(map[string]bool)
+	// When Tests=true, the same source file may be analyzed in both main and test packages
+	// (when user doesn't mark test pkg as *_test), causing identical diagnostics to appear twice
+	seen := make(map[string]bool)
 
 	for act := range graph.All() {
 		if act.Err != nil {
-			fmt.Printf("%s: %v\n", act.Package.PkgPath, act.Err)
-			foundIssues = true
 			continue
 		}
 
@@ -143,22 +188,20 @@ func (r *Runner) reportDiagnostics(graph *checker.Graph) bool {
 			}
 			key := fmt.Sprintf("%s:%d:%d|%s", pos.Filename, pos.Line, pos.Column, diag.Message)
 
-			if reported[key] {
+			if seen[key] {
 				continue
 			}
-			reported[key] = true
+			seen[key] = true
 
-			foundIssues = true
-			issueCount++
-			fmt.Printf("%s: %s\n", pos, diag.Message)
+			findings = append(findings, JSONFinding{
+				CheckID: act.Analyzer.Name,
+				Path:    pos.Filename,
+				Line:    pos.Line,
+				Message: diag.Message,
+			})
 		}
 	}
-
-	if foundIssues {
-		fmt.Printf("Found %d issue(s)\n", issueCount)
-	}
-
-	return foundIssues
+	return findings
 }
 
 func shouldKeepDiagnostic(pkgPath string, pos token.Position, message string) bool {

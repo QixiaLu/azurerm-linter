@@ -4,17 +4,66 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/qixialu/azurerm-linter/passes"
 )
 
+// Version is set at build time via -ldflags, or auto-detected from build info
+var Version = ""
+
+func init() {
+	if Version != "" {
+		return
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		Version = "dev"
+		return
+	}
+
+	version := info.Main.Version
+	if version == "" || version == "(devel)" {
+		version = "dev"
+	}
+	if idx := strings.Index(version, "-"); idx > 0 && strings.HasPrefix(version, "v") {
+		version = version[:idx]
+	}
+
+	var vcsRevision, vcsTime string
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if len(s.Value) > 8 {
+				vcsRevision = s.Value[:8]
+			} else {
+				vcsRevision = s.Value
+			}
+		case "vcs.time":
+			vcsTime = s.Value
+		}
+	}
+
+	Version = "version " + version + " built with " + info.GoVersion
+	if vcsRevision != "" {
+		Version += " from " + vcsRevision
+	}
+	if vcsTime != "" {
+		Version += " on " + vcsTime
+	}
+}
+
 // Config holds all configuration options for the linter
 type Config struct {
 	// Command options
-	Patterns   []string
-	ShowHelp   bool
-	ListChecks bool
+	Patterns    []string
+	ShowHelp    bool
+	ShowVersion bool
+	ListChecks  bool
+
+	// Output options
+	OutputFormat string
 
 	// Loader options
 	NoFilter   bool
@@ -36,7 +85,11 @@ func ParseFlags() (*Config, error) {
 
 	// Command flags
 	fs.BoolVar(&cfg.ShowHelp, "help", false, "show help message")
+	fs.BoolVar(&cfg.ShowVersion, "version", false, "print version and exit")
 	fs.BoolVar(&cfg.ListChecks, "list", false, "list all available checks")
+
+	// Output flags
+	fs.StringVar(&cfg.OutputFormat, "output", "text", "output format: text or json")
 
 	// Loader flags
 	fs.BoolVar(&cfg.NoFilter, "no-filter", false, "disable change filtering, analyze all files")
@@ -53,9 +106,24 @@ func ParseFlags() (*Config, error) {
 		return nil, err
 	}
 
-	cfg.Patterns = fs.Args()
+	args := fs.Args()
+	if len(args) > 0 && args[0] == "version" {
+		cfg.ShowVersion = true
+		return cfg, nil
+	}
+
+	cfg.Patterns = args
 
 	return cfg, nil
+}
+
+// ShortVersion returns a compact version string (e.g. "v0.4.2" or "dev")
+func ShortVersion() string {
+	v := Version
+	if strings.HasPrefix(v, "version ") {
+		return strings.Fields(v)[1]
+	}
+	return v
 }
 
 // PrintHelp prints the help message

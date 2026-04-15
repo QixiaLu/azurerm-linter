@@ -34,7 +34,9 @@ Valid usage:
 
   name = "acctestkv%[1]d"
   name = "acctestresource%d"
+	name = "${azurerm_resource_group.test.name}-replica"
 
+Interpolated names (containing "${...}") are automatically skipped.
 Excluded resource types: azurerm_private_dns_zone (name is a domain, not a test identifier).
 `
 
@@ -55,8 +57,9 @@ var aznr007NameValueRegex = regexp.MustCompile(`(?m)^  name\s*=\s*"([^"]+)"`)
 var aznr007BlockDeclRegex = regexp.MustCompile(`(?m)^(\w+)\s+"([^"]+)"`)
 
 var aznr007ExcludedResourceTypes = map[string]bool{
-	"azurerm_private_dns_zone": true,
-	"azurerm_subnet":           true,
+	"azurerm_private_dns_zone":                         true,
+	"azurerm_subnet":                                   true,
+	"azurerm_postgresql_flexible_server_configuration": true,
 }
 
 func runAZNR007(pass *analysis.Pass) (interface{}, error) {
@@ -125,6 +128,10 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			if !strings.HasPrefix(nameValue, "acctest") {
+				if strings.Contains(nameValue, "${") {
+					continue
+				}
+
 				reportPos := lit.Pos()
 				if isRawString && matchLine > pos.Line {
 					reportPos = pass.Fset.File(lit.Pos()).LineStart(matchLine)

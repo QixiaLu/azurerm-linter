@@ -245,14 +245,21 @@ func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) bool {
 		return false
 	}
 
-	var registrations []string
+	var isMap, isSlice bool
 	switch typ.Underlying().(type) {
 	case *types.Map:
-		registrations = extractRegistrationMapKeys(compositeLit)
+		isMap = true
 	case *types.Slice:
-		registrations = extractRegistrationResourceNames(compositeLit)
+		isSlice = true
 	default:
 		return false
+	}
+
+	var registrations []string
+	if isMap {
+		registrations = extractRegistrationMapKeys(compositeLit.Elts)
+	} else if isSlice {
+		registrations = extractRegistrationResourceNames(compositeLit.Elts)
 	}
 
 	if sort.StringsAreSorted(registrations) {
@@ -278,9 +285,9 @@ func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) bool {
 }
 
 // extractRegistrationMapKeys extracts resource name keys from registration map literals
-func extractRegistrationMapKeys(compositeLit *ast.CompositeLit) []string {
+func extractRegistrationMapKeys(elts []ast.Expr) []string {
 	var keys []string
-	for _, elt := range compositeLit.Elts {
+	for _, elt := range elts {
 		if kv, ok := elt.(*ast.KeyValueExpr); ok {
 			if basicLit, ok := kv.Key.(*ast.BasicLit); ok && basicLit.Kind == token.STRING {
 				if key, err := strconv.Unquote(basicLit.Value); err == nil {
@@ -293,9 +300,9 @@ func extractRegistrationMapKeys(compositeLit *ast.CompositeLit) []string {
 }
 
 // extractRegistrationResourceNames extracts resource struct names from registration slice literals
-func extractRegistrationResourceNames(compositeLit *ast.CompositeLit) []string {
+func extractRegistrationResourceNames(elts []ast.Expr) []string {
 	var resourceNames []string
-	for _, elt := range compositeLit.Elts {
+	for _, elt := range elts {
 		if compositeLit, ok := elt.(*ast.CompositeLit); ok {
 			if ident, ok := compositeLit.Type.(*ast.Ident); ok {
 				resourceNames = append(resourceNames, ident.Name)

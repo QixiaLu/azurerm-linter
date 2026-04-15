@@ -6,6 +6,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
+var schemaBuckets = []map[string]*schema.Schema{
+	invalidCases(),
+	invalidCasesViaVariable(),
+	validCases(),
+	validLiteralStrings(),
+	validMixedContent(),
+	validNotSameContent(),
+}
+
 func invalidCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"priority": {

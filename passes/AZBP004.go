@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 
+	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/reporting"
@@ -38,10 +39,15 @@ var AZBP004Analyzer = &analysis.Analyzer{
 	Name:     azbp004Name,
 	Doc:      AZBP004Doc,
 	Run:      runAZBP004,
-	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	Requires: []*analysis.Analyzer{inspect.Analyzer, commentignore.Analyzer},
 }
 
 func runAZBP004(pass *analysis.Pass) (interface{}, error) {
+	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	if !ok {
+		return nil, nil
+	}
+
 	if helper.ShouldSkipPackageForResourceAnalysis(pass.Pkg.Path()) {
 		return nil, nil
 	}
@@ -51,13 +57,13 @@ func runAZBP004(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
-	checkZeroInitPattern(pass, inspector)
+	checkZeroInitPattern(pass, inspector, ignorer)
 
 	return nil, nil
 }
 
 // checkZeroInitPattern checks for: y := <zero>; if x != nil { y = *x }
-func checkZeroInitPattern(pass *analysis.Pass, inspector *inspector.Inspector) {
+func checkZeroInitPattern(pass *analysis.Pass, inspector *inspector.Inspector, ignorer *commentignore.Ignorer) {
 	nodeFilter := []ast.Node{(*ast.BlockStmt)(nil), (*ast.CaseClause)(nil)}
 
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
@@ -92,7 +98,7 @@ func checkZeroInitPattern(pass *analysis.Pass, inspector *inspector.Inspector) {
 			}
 
 			pos := pass.Fset.Position(assignStmt.Pos())
-			if loader.IsFileChanged(pos.Filename) {
+			if loader.IsFileChanged(pos.Filename) && !ignorer.ShouldIgnore(azbp004Name, assignStmt) {
 				reporting.Reportf(pass, reporting.ReportOptions{
 					Rule:          azbp004Name,
 					ReportPos:     assignStmt.Pos(),
