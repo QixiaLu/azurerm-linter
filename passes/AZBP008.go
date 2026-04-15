@@ -9,6 +9,7 @@ import (
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -75,12 +76,23 @@ func runAZBP008(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		enumPkg, enumType := findChangedSDKEnum(pass, compLit.Elts)
+		filePos := pass.Fset.Position(compLit.Pos())
+		if !loader.IsFileChanged(filePos.Filename) {
+			continue
+		}
+
+		enumPkg, enumType, evidenceLines := findChangedSDKEnum(pass, compLit.Elts)
 		if enumPkg == "" {
 			continue
 		}
 
-		pass.Reportf(call.Pos(), "%s: use %s instead of %s\n",
+		reporting.Reportf(pass, reporting.ReportOptions{
+			Rule:          azbp008Name,
+			ReportPos:     call.Pos(),
+			EvidenceFile:  filePos.Filename,
+			EvidenceLines: evidenceLines,
+			MatchMode:     reporting.MatchModeExactAdded,
+		}, "%s: use %s instead of %s\n",
 			azbp008Name,
 			helper.FixedCode(enumPkg+".PossibleValuesFor"+enumType+"()"),
 			helper.IssueLine("manually listing enum values"),
@@ -90,19 +102,19 @@ func runAZBP008(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func findChangedSDKEnum(pass *analysis.Pass, elts []ast.Expr) (string, string) {
+func findChangedSDKEnum(pass *analysis.Pass, elts []ast.Expr) (string, string, []int) {
 	enumPkg, enumNamed := extractEnumType(pass, elts)
 	if enumNamed == nil || len(elts) != countEnumConstants(enumNamed) {
-		return "", ""
+		return "", "", nil
 	}
 
+	evidenceLines := make([]int, 0, len(elts))
 	for _, elt := range elts {
 		pos := pass.Fset.Position(elt.Pos())
-		if loader.ShouldReport(pos.Filename, pos.Line) {
-			return enumPkg, enumNamed.Obj().Name()
-		}
+		evidenceLines = append(evidenceLines, pos.Line)
 	}
-	return "", ""
+
+	return enumPkg, enumNamed.Obj().Name(), evidenceLines
 }
 
 // extractEnumType returns the enum package and type if all elements are the same SDK enum type.

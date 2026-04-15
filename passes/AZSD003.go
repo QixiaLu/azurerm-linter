@@ -11,6 +11,7 @@ import (
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -107,11 +108,18 @@ func runAZSD003(pass *analysis.Pass) (interface{}, error) {
 
 		if len(redundantFields) > 0 {
 			pos := pass.Fset.Position(schemaLit.Pos())
-			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(schemaLit.Pos(), "%s: ConflictsWith contains %s which is redundant - already covered by ExactlyOneOf",
-					azsd003Name,
-					helper.IssueLine(strings.Join(redundantFields, ", ")))
+			if !loader.IsFileChanged(pos.Filename) {
+				continue
 			}
+			reporting.Reportf(pass, reporting.ReportOptions{
+				Rule:          azsd003Name,
+				ReportPos:     schemaLit.Pos(),
+				EvidenceFile:  pos.Filename,
+				EvidenceLines: []int{pos.Line},
+				MatchMode:     reporting.MatchModeExactAdded,
+			}, "%s: ConflictsWith contains %s which is redundant - already covered by ExactlyOneOf",
+				azsd003Name,
+				helper.IssueLine(strings.Join(redundantFields, ", ")))
 		}
 	}
 

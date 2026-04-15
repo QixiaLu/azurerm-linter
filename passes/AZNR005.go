@@ -12,6 +12,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -33,7 +34,7 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 func (r Registration) Resources() []sdk.Resource {
 	return []sdk.Resource{
 		WorkspaceResource{},
-		ApiManagementResource{}, // should come first alphabetically  
+		ApiManagementResource{}, // should come first alphabetically
 	}
 }
 
@@ -79,6 +80,9 @@ func runAZNR005(pass *analysis.Pass) (interface{}, error) {
 	for _, file := range pass.Files {
 		pos := pass.Fset.Position(file.Pos())
 		if !strings.HasSuffix(filepath.Base(pos.Filename), "registration.go") {
+			continue
+		}
+		if !loader.IsFileChanged(pos.Filename) {
 			continue
 		}
 
@@ -164,14 +168,20 @@ func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) {
 	}
 
 	if !sort.StringsAreSorted(registrations) {
+		evidenceLines := make([]int, 0, len(compositeLit.Elts))
 		for _, elt := range compositeLit.Elts {
 			pos := pass.Fset.Position(elt.Pos())
-			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(compositeLit.Pos(), "%s: %s\n",
-					aznr005Name, helper.FixedCode("registrations should be sorted alphabetically"))
-				return
-			}
+			evidenceLines = append(evidenceLines, pos.Line)
 		}
+
+		reporting.Report(pass, reporting.ReportOptions{
+			Rule:          aznr005Name,
+			ReportPos:     compositeLit.Pos(),
+			Message:       aznr005Name + ": " + helper.FixedCode("registrations should be sorted alphabetically") + "\n",
+			EvidenceFile:  pass.Fset.Position(compositeLit.Pos()).Filename,
+			EvidenceLines: evidenceLines,
+			MatchMode:     reporting.MatchModeSameHunk,
+		})
 	}
 }
 

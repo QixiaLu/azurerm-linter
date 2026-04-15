@@ -1,6 +1,7 @@
 package passes
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
@@ -11,6 +12,7 @@ import (
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/reporting"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -302,28 +304,44 @@ func reportMissingProperties(pass *analysis.Pass, ignorer *commentignore.Ignorer
 			position := pass.Fset.Position(fieldInfo.Pos)
 			// Check if position is valid (Pos is in current pass's FileSet)
 			if position.IsValid() {
-				if !loader.ShouldReport(position.Filename, position.Line) {
+				if !loader.IsFileChanged(position.Filename) {
 					continue
 				}
-				pass.Reportf(fieldInfo.Pos,
-					"%s: updatable property `%s` is not handled in Update function. If non-updatable, mark as %s in Arguments() schema\n",
-					aznr002Name,
-					helper.IssueLine(tfSchemaName),
-					helper.FixedCode("ForceNew: true"))
+				reporting.Report(pass, reporting.ReportOptions{
+					Rule:      aznr002Name,
+					ReportPos: fieldInfo.Pos,
+					Message: fmt.Sprintf(
+						"%s: updatable property `%s` is not handled in Update function. If non-updatable, mark as %s in Arguments() schema\n",
+						aznr002Name,
+						helper.IssueLine(tfSchemaName),
+						helper.FixedCode("ForceNew: true"),
+					),
+					EvidenceFile:  position.Filename,
+					EvidenceLines: []int{position.Line},
+					MatchMode:     reporting.MatchModeExactAdded,
+				})
 				continue
 			}
 		}
 
 		// Fallback to Update function position (for cross-package schemas)
 		if fieldInfo.Position.IsValid() {
-			if !loader.ShouldReport(fieldInfo.Position.Filename, fieldInfo.Position.Line) {
+			if !loader.IsFileChanged(fieldInfo.Position.Filename) {
 				continue
 			}
 		}
-		pass.Reportf(resource.UpdateFunc.Pos(),
-			"%s: updatable property `%s` is not handled in Update function. If non-updatable, mark as %s in Arguments() schema\n",
-			aznr002Name,
-			helper.IssueLine(tfSchemaName),
-			helper.FixedCode("ForceNew: true"))
+		reporting.Report(pass, reporting.ReportOptions{
+			Rule:      aznr002Name,
+			ReportPos: resource.UpdateFunc.Pos(),
+			Message: fmt.Sprintf(
+				"%s: updatable property `%s` is not handled in Update function. If non-updatable, mark as %s in Arguments() schema\n",
+				aznr002Name,
+				helper.IssueLine(tfSchemaName),
+				helper.FixedCode("ForceNew: true"),
+			),
+			EvidenceFile:  fieldInfo.Position.Filename,
+			EvidenceLines: []int{fieldInfo.Position.Line},
+			MatchMode:     reporting.MatchModeExactAdded,
+		})
 	}
 }

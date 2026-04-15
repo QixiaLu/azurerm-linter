@@ -3,9 +3,11 @@ package loader
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/qixialu/azurerm-linter/reporting"
 )
 
-func TestChangeSetShouldReportFallsBackToChangedFileWhenNoLinesTracked(t *testing.T) {
+func TestChangeSetShouldKeepDiagnosticExactAddedTracksOnlyAddedLines(t *testing.T) {
 	cs := NewChangeSet()
 
 	diff := `diff --git a/internal/services/cdn/registration.go b/internal/services/cdn/registration.go
@@ -30,18 +32,33 @@ index 1111111..2222222 100644
 		t.Fatalf("getTotalChangedLines() = %d, want 0", got)
 	}
 
-	if !cs.ShouldReport(file, 37) {
-		t.Fatalf("ShouldReport(%q, 37) = false, want true", file)
+	if cs.ShouldKeepDiagnostic(reporting.DiagnosticMeta{
+		ReportFile:    file,
+		EvidenceFile:  file,
+		EvidenceLines: []int{37},
+		MatchMode:     reporting.MatchModeExactAdded,
+	}) {
+		t.Fatalf("ShouldKeepDiagnostic() = true, want false for deletion-only line")
 	}
-	if !cs.ShouldReport(file, 1) {
-		t.Fatalf("ShouldReport(%q, 1) = false, want true for changed file fallback", file)
+	if cs.ShouldKeepDiagnostic(reporting.DiagnosticMeta{
+		ReportFile:    file,
+		EvidenceFile:  file,
+		EvidenceLines: []int{1},
+		MatchMode:     reporting.MatchModeExactAdded,
+	}) {
+		t.Fatalf("ShouldKeepDiagnostic() = true, want false for unrelated line")
 	}
-	if cs.ShouldReport(filepath.Join("repo", "internal", "services", "dns", "registration.go"), 37) {
-		t.Fatalf("ShouldReport() = true for unchanged file, want false")
+	if cs.ShouldKeepDiagnostic(reporting.DiagnosticMeta{
+		ReportFile:    filepath.Join("repo", "internal", "services", "dns", "registration.go"),
+		EvidenceFile:  filepath.Join("repo", "internal", "services", "dns", "registration.go"),
+		EvidenceLines: []int{37},
+		MatchMode:     reporting.MatchModeExactAdded,
+	}) {
+		t.Fatalf("ShouldKeepDiagnostic() = true for unchanged file, want false")
 	}
 }
 
-func TestChangeSetShouldReportRemainsLineScopedWhenLinesTracked(t *testing.T) {
+func TestChangeSetShouldKeepDiagnosticExactAddedRemainsLineScoped(t *testing.T) {
 	cs := NewChangeSet()
 	file := "internal/services/cdn/registration.go"
 	cs.changedFiles[file] = true
@@ -49,26 +66,36 @@ func TestChangeSetShouldReportRemainsLineScopedWhenLinesTracked(t *testing.T) {
 
 	fullPath := filepath.Join("repo", "internal", "services", "cdn", "registration.go")
 
-	if !cs.ShouldReport(fullPath, 42) {
-		t.Fatalf("ShouldReport(%q, 42) = false, want true", fullPath)
+	if !cs.ShouldKeepDiagnostic(reporting.DiagnosticMeta{
+		ReportFile:    fullPath,
+		EvidenceFile:  fullPath,
+		EvidenceLines: []int{42},
+		MatchMode:     reporting.MatchModeExactAdded,
+	}) {
+		t.Fatalf("ShouldKeepDiagnostic() = false, want true for exact added line")
 	}
-	if cs.ShouldReport(fullPath, 41) {
-		t.Fatalf("ShouldReport(%q, 41) = true, want false", fullPath)
+	if cs.ShouldKeepDiagnostic(reporting.DiagnosticMeta{
+		ReportFile:    fullPath,
+		EvidenceFile:  fullPath,
+		EvidenceLines: []int{41},
+		MatchMode:     reporting.MatchModeExactAdded,
+	}) {
+		t.Fatalf("ShouldKeepDiagnostic() = true, want false for unchanged line")
 	}
 }
 
-func TestChangeSetShouldReportFallsBackWhenFileHasDeletionOnlyHunk(t *testing.T) {
+func TestChangeSetShouldKeepDiagnosticMatchesDeletionHunkContext(t *testing.T) {
 	cs := NewChangeSet()
 
 	diff := `diff --git a/internal/services/cdn/registration.go b/internal/services/cdn/registration.go
 index 1111111..2222222 100644
 --- a/internal/services/cdn/registration.go
 +++ b/internal/services/cdn/registration.go
-@@ -37,1 +37,0 @@
+@@ -37,4 +37,3 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 -//lintignore:AZNR005 temporary exemption
-@@ -55,1 +55,1 @@
--	return resources
-+	return registration.Resources()
+ 	return map[string]*pluginsdk.Resource{
+ 		"azurerm_managed_disk":     nil,
+ 		"azurerm_availability_set": nil,
 `
 
 	if err := cs.parseDiffOutput(diff); err != nil {
@@ -77,13 +104,31 @@ index 1111111..2222222 100644
 
 	file := filepath.Join("repo", "internal", "services", "cdn", "registration.go")
 
-	if !cs.ShouldReport(file, 37) {
-		t.Fatalf("ShouldReport(%q, 37) = false, want true for deletion-only hunk fallback", file)
+	if cs.ShouldKeepDiagnostic(reporting.DiagnosticMeta{
+		ReportFile:    file,
+		EvidenceFile:  file,
+		EvidenceLines: []int{37},
+		MatchMode:     reporting.MatchModeExactAdded,
+	}) {
+		t.Fatalf("ShouldKeepDiagnostic() = true, want false for deletion-only exact-added evidence")
 	}
-	if !cs.ShouldReport(file, 55) {
-		t.Fatalf("ShouldReport(%q, 55) = false, want true for tracked changed line", file)
+	meta := reporting.DiagnosticMeta{
+		ReportFile:    file,
+		EvidenceFile:  file,
+		EvidenceLines: []int{37, 38, 39},
+		MatchMode:     reporting.MatchModeSameHunk,
 	}
-	if !cs.fileFallback["internal/services/cdn/registration.go"] {
-		t.Fatalf("fileFallback not recorded for deletion-only hunk")
+	if !cs.ShouldKeepDiagnostic(meta) {
+		t.Fatalf("ShouldKeepDiagnostic() = false, want true for same-hunk evidence")
+	}
+
+	unrelated := reporting.DiagnosticMeta{
+		ReportFile:    file,
+		EvidenceFile:  file,
+		EvidenceLines: []int{1},
+		MatchMode:     reporting.MatchModeSameHunk,
+	}
+	if cs.ShouldKeepDiagnostic(unrelated) {
+		t.Fatalf("ShouldKeepDiagnostic() = true, want false for unrelated evidence line")
 	}
 }

@@ -1,17 +1,19 @@
 package passes
 
 import (
+	"fmt"
 	"go/ast"
 	"strings"
 
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 )
 
 const AZBP005Doc = `check that Go source files have the correct licensing header
 
-The AZBP005 analyzer reports cases where Go source files do not have the 
+The AZBP005 analyzer reports cases where Go source files do not have the
 required licensing header at the very beginning of the file.
 
 Required header format (no preceding blank lines):
@@ -53,7 +55,7 @@ func runAZBP005(pass *analysis.Pass) (interface{}, error) {
 
 func checkLicenseHeader(pass *analysis.Pass, file *ast.File) {
 	filename := pass.Fset.Position(file.Pos()).Filename
-	if !strings.HasSuffix(filename, ".go") || !loader.ShouldReport(filename, 1) {
+	if !strings.HasSuffix(filename, ".go") || !loader.IsFileChanged(filename) {
 		return
 	}
 
@@ -61,30 +63,54 @@ func checkLicenseHeader(pass *analysis.Pass, file *ast.File) {
 
 	// Check: must have comments, first comment before package, starts at line 1
 	if len(file.Comments) == 0 || file.Comments[0].Pos() > file.Package {
-		pass.Reportf(file.Pos(), "%s: missing license header. Add at the beginning:\n%s\n",
-			azbp005Name, helper.FixedCode(expectedHeader))
+		reporting.Report(pass, reporting.ReportOptions{
+			Rule:          azbp005Name,
+			ReportPos:     file.Pos(),
+			Message:       fmt.Sprintf("%s: missing license header. Add at the beginning:\n%s\n", azbp005Name, helper.FixedCode(expectedHeader)),
+			EvidenceFile:  filename,
+			EvidenceLines: []int{1},
+			MatchMode:     reporting.MatchModeExactAdded,
+		})
 		return
 	}
 
 	firstComment := file.Comments[0]
 	if pass.Fset.Position(firstComment.Pos()).Line != 1 {
-		pass.Reportf(file.Pos(), "%s: license header must start at line 1. Expected:\n%s\n",
-			azbp005Name, helper.FixedCode(expectedHeader))
+		reporting.Report(pass, reporting.ReportOptions{
+			Rule:          azbp005Name,
+			ReportPos:     file.Pos(),
+			Message:       fmt.Sprintf("%s: license header must start at line 1. Expected:\n%s\n", azbp005Name, helper.FixedCode(expectedHeader)),
+			EvidenceFile:  filename,
+			EvidenceLines: []int{1},
+			MatchMode:     reporting.MatchModeExactAdded,
+		})
 		return
 	}
 
 	// Check content matches
 	comments := firstComment.List
 	if len(comments) < len(expectedLicenseLines) {
-		pass.Reportf(firstComment.Pos(), "%s: incomplete license header. Expected:\n%s\n",
-			azbp005Name, helper.FixedCode(expectedHeader))
+		reporting.Report(pass, reporting.ReportOptions{
+			Rule:          azbp005Name,
+			ReportPos:     firstComment.Pos(),
+			Message:       fmt.Sprintf("%s: incomplete license header. Expected:\n%s\n", azbp005Name, helper.FixedCode(expectedHeader)),
+			EvidenceFile:  filename,
+			EvidenceLines: []int{1},
+			MatchMode:     reporting.MatchModeExactAdded,
+		})
 		return
 	}
 
 	for i, expected := range expectedLicenseLines {
 		if strings.TrimSpace(comments[i].Text) != expected {
-			pass.Reportf(comments[i].Pos(), "%s: incorrect license header. Expected:\n%s\n",
-				azbp005Name, helper.FixedCode(expectedHeader))
+			reporting.Report(pass, reporting.ReportOptions{
+				Rule:          azbp005Name,
+				ReportPos:     comments[i].Pos(),
+				Message:       fmt.Sprintf("%s: incorrect license header. Expected:\n%s\n", azbp005Name, helper.FixedCode(expectedHeader)),
+				EvidenceFile:  filename,
+				EvidenceLines: []int{1},
+				MatchMode:     reporting.MatchModeExactAdded,
+			})
 			return
 		}
 	}

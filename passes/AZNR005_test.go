@@ -22,8 +22,11 @@ func TestAZNR005DeletionOnlyDiffStillReportsInFilteredMode(t *testing.T) {
 index 1111111..2222222 100644
 --- a/internal/services/cdn/registration.go
 +++ b/internal/services/cdn/registration.go
-@@ -10,1 +10,0 @@
+@@ -10,4 +10,3 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 -//lintignore:AZNR005 temporary exemption
+ 	return map[string]*pluginsdk.Resource{
+ 		"azurerm_managed_disk":     nil,
+ 		"azurerm_availability_set": nil,
 `
 
 	if err := os.WriteFile(diffPath, []byte(diff), 0o600); err != nil {
@@ -47,9 +50,12 @@ func TestAZNR005DeletionOnlyHunkStillReportsWhenOtherLinesChanged(t *testing.T) 
 index 1111111..2222222 100644
 --- a/internal/services/cdn/registration.go
 +++ b/internal/services/cdn/registration.go
-@@ -10,1 +10,0 @@
+@@ -10,4 +10,3 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 -//lintignore:AZNR005 temporary exemption
-@@ -55,1 +55,1 @@
+ 	return map[string]*pluginsdk.Resource{
+ 		"azurerm_managed_disk":     nil,
+ 		"azurerm_availability_set": nil,
+@@ -15,3 +14,3 @@ func (r Registration) Resources() []sdk.Resource {
 -	return resources
 +	return registration.Resources()
 `

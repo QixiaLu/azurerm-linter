@@ -6,6 +6,7 @@ import (
 
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -92,11 +93,17 @@ func runAZBP010(pass *analysis.Pass) (interface{}, error) {
 
 			if returnsOnlyDeclaredVars(returnStmt, declaredVars) {
 				pos := pass.Fset.Position(declStmt.Pos())
-				if !loader.ShouldReport(pos.Filename, pos.Line) || ignorer.ShouldIgnore(azbp010Name, declStmt) {
+				if !loader.IsFileChanged(pos.Filename) || ignorer.ShouldIgnore(azbp010Name, declStmt) {
 					continue
 				}
 
-				pass.Reportf(declStmt.Pos(), "%s: variable declared and immediately returned, consider returning the value directly\n",
+				reporting.Reportf(pass, reporting.ReportOptions{
+					Rule:          azbp010Name,
+					ReportPos:     declStmt.Pos(),
+					EvidenceFile:  pos.Filename,
+					EvidenceLines: []int{pos.Line},
+					MatchMode:     reporting.MatchModeExactAdded,
+				}, "%s: variable declared and immediately returned, consider returning the value directly\n",
 					azbp010Name)
 			}
 		}

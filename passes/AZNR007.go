@@ -10,6 +10,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -119,7 +120,7 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 				matchLine += strings.Count(value[:loc[0]], "\n")
 			}
 
-			if !loader.ShouldReport(pos.Filename, matchLine) {
+			if !loader.IsFileChanged(pos.Filename) {
 				continue
 			}
 
@@ -128,7 +129,13 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 				if isRawString && matchLine > pos.Line {
 					reportPos = pass.Fset.File(lit.Pos()).LineStart(matchLine)
 				}
-				pass.Reportf(reportPos, "%s: resource name %q should start with %s\n",
+				reporting.Reportf(pass, reporting.ReportOptions{
+					Rule:          aznr007Name,
+					ReportPos:     reportPos,
+					EvidenceFile:  pos.Filename,
+					EvidenceLines: []int{matchLine},
+					MatchMode:     reporting.MatchModeExactAdded,
+				}, "%s: resource name %q should start with %s\n",
 					aznr007Name, nameValue,
 					helper.FixedCode(`"acctest"`))
 			}

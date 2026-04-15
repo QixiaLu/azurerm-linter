@@ -124,7 +124,7 @@ azurerm-linter --no-filter ./internal/services/...
 --help             # Show help
 ```
 
-**Note**: By default, only changed lines are analyzed. Use `--no-filter` to check everything.
+**Note**: By default, filtered mode only reports diagnostics tied to the current diff. Most rules require evidence on added lines, while structural rules can opt into broader matching such as the same hunk or a newly added file. This keeps unrelated pre-existing issues out of filtered runs while still allowing deletion-only hunks to surface diagnostics when the change affected the nearby structure. Use `--no-filter` to check everything.
 
 ### Output
 
