@@ -62,6 +62,9 @@ type Config struct {
 	ShowVersion bool
 	ListChecks  bool
 
+	// Output options
+	OutputFormat string
+
 	// Loader options
 	NoFilter   bool
 	PRNumber   int
@@ -84,6 +87,9 @@ func ParseFlags() (*Config, error) {
 	fs.BoolVar(&cfg.ShowHelp, "help", false, "show help message")
 	fs.BoolVar(&cfg.ShowVersion, "version", false, "print version and exit")
 	fs.BoolVar(&cfg.ListChecks, "list", false, "list all available checks")
+
+	// Output flags
+	fs.StringVar(&cfg.OutputFormat, "output", "text", "output format: text or json")
 
 	// Loader flags
 	fs.BoolVar(&cfg.NoFilter, "no-filter", false, "disable change filtering, analyze all files")
@@ -109,6 +115,16 @@ func ParseFlags() (*Config, error) {
 	cfg.Patterns = args
 
 	return cfg, nil
+}
+
+// ShortVersion returns a compact version string (e.g. "v0.4.2" or "dev")
+// suitable for JSON output and programmatic use.
+func ShortVersion() string {
+	v := Version
+	if strings.HasPrefix(v, "version ") {
+		return strings.Fields(v)[1]
+	}
+	return v
 }
 
 // PrintHelp prints the help message
