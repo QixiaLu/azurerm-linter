@@ -155,30 +155,68 @@ func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) {
 		return
 	}
 
-	var registrations []string
+	var isMap, isSlice bool
 	switch typ.Underlying().(type) {
 	case *types.Map:
-		registrations = extractRegistrationMapKeys(compositeLit)
+		isMap = true
 	case *types.Slice:
-		registrations = extractRegistrationResourceNames(compositeLit)
+		isSlice = true
+	default:
+		return
 	}
 
-	if !sort.StringsAreSorted(registrations) {
-		for _, elt := range compositeLit.Elts {
-			pos := pass.Fset.Position(elt.Pos())
-			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(compositeLit.Pos(), "%s: %s\n",
-					aznr005Name, helper.FixedCode("registrations should be sorted alphabetically"))
-				return
+	sections := splitIntoSections(pass.Fset, compositeLit.Elts)
+
+	for _, sectionElts := range sections {
+		var registrations []string
+		if isMap {
+			registrations = extractRegistrationMapKeys(sectionElts)
+		} else if isSlice {
+			registrations = extractRegistrationResourceNames(sectionElts)
+		}
+
+		if !sort.StringsAreSorted(registrations) {
+			for _, elt := range sectionElts {
+				pos := pass.Fset.Position(elt.Pos())
+				if loader.ShouldReport(pos.Filename, pos.Line) {
+					pass.Reportf(compositeLit.Pos(), "%s: %s\n",
+						aznr005Name, helper.FixedCode("registrations should be sorted alphabetically"))
+					return
+				}
 			}
 		}
 	}
 }
 
+// splitIntoSections groups consecutive elements into sections separated by empty lines
+func splitIntoSections(fset *token.FileSet, elts []ast.Expr) [][]ast.Expr {
+	if len(elts) <= 1 {
+		return [][]ast.Expr{elts}
+	}
+
+	var sections [][]ast.Expr
+	currentSection := []ast.Expr{elts[0]}
+
+	for i := 1; i < len(elts); i++ {
+		prevLine := fset.Position(elts[i-1].End()).Line
+		currLine := fset.Position(elts[i].Pos()).Line
+		// If there's more than one line gap, it's a new section
+		if currLine-prevLine > 1 {
+			sections = append(sections, currentSection)
+			currentSection = []ast.Expr{elts[i]}
+		} else {
+			currentSection = append(currentSection, elts[i])
+		}
+	}
+
+	sections = append(sections, currentSection)
+	return sections
+}
+
 // extractRegistrationMapKeys extracts resource name keys from registration map literals
-func extractRegistrationMapKeys(compositeLit *ast.CompositeLit) []string {
+func extractRegistrationMapKeys(elts []ast.Expr) []string {
 	var keys []string
-	for _, elt := range compositeLit.Elts {
+	for _, elt := range elts {
 		if kv, ok := elt.(*ast.KeyValueExpr); ok {
 			if basicLit, ok := kv.Key.(*ast.BasicLit); ok && basicLit.Kind == token.STRING {
 				if key, err := strconv.Unquote(basicLit.Value); err == nil {
@@ -191,9 +229,9 @@ func extractRegistrationMapKeys(compositeLit *ast.CompositeLit) []string {
 }
 
 // extractRegistrationResourceNames extracts resource struct names from registration slice literals
-func extractRegistrationResourceNames(compositeLit *ast.CompositeLit) []string {
+func extractRegistrationResourceNames(elts []ast.Expr) []string {
 	var resourceNames []string
-	for _, elt := range compositeLit.Elts {
+	for _, elt := range elts {
 		if compositeLit, ok := elt.(*ast.CompositeLit); ok {
 			if ident, ok := compositeLit.Type.(*ast.Ident); ok {
 				resourceNames = append(resourceNames, ident.Name)

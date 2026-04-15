@@ -27,6 +27,12 @@ func run() int {
 		return 0
 	}
 
+	// Handle version flag
+	if cfg.ShowVersion {
+		fmt.Println("azurerm-linter has", cmd.Version)
+		return 0
+	}
+
 	// Handle list checks flag
 	if cfg.ListChecks {
 		cmd.PrintChecks()

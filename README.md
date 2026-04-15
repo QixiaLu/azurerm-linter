@@ -36,7 +36,7 @@ For additional information about each check, see the documentation in passes's d
 | AZNR004 | check for `flatten*` functions returning slices don't return `nil` |
 | AZNR005 | check for registrations are sorted alphabetically |
 | AZNR006 | check that nil checks are performed inside `flatten*` methods |
-| AZNR007 | check that resource names in test configurations start with `"acctest"` |
+| AZNR007 (DEPRECATED) | check that resource names in test configurations start with `"acctest"` |
 | AZNR008 | check for hardcoded resource IDs in test configurations |
 
 ### Azure Naming Rule Checks
@@ -115,6 +115,7 @@ azurerm-linter --no-filter ./internal/services/...
 ### Common Options
 
 ```bash
+--version          # Print version information
 --pr=<number>      # Check GitHub PR
 --remote=<name>    # Specify git remote (origin/upstream)
 --base=<branch>    # Specify base branch
