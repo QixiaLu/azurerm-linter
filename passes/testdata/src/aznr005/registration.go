@@ -32,6 +32,37 @@ func (r Registration) InvalidSupportedResources() map[string]*pluginsdk.Resource
 	}
 }
 
+// Sectioned map sorted within each section - should pass
+func (r Registration) SectionedDataSources() map[string]*pluginsdk.Resource {
+	return map[string]*pluginsdk.Resource{
+		// CDN
+		"azurerm_cdn_profile": nil,
+
+		// FrontDoor
+		"azurerm_cdn_frontdoor_custom_domain":   nil,
+		"azurerm_cdn_frontdoor_endpoint":        nil,
+		"azurerm_cdn_frontdoor_firewall_policy": nil,
+		"azurerm_cdn_frontdoor_origin_group":    nil,
+		"azurerm_cdn_frontdoor_profile":         nil,
+		"azurerm_cdn_frontdoor_rule_set":        nil,
+		"azurerm_cdn_frontdoor_secret":          nil,
+	}
+}
+
+// Sectioned map with unsorted entries in one section - should fail
+func (r Registration) InvalidSectionedDataSources() map[string]*pluginsdk.Resource {
+	return map[string]*pluginsdk.Resource{ // want `AZNR005`
+		// CDN
+		"azurerm_cdn_profile": nil,
+
+		// FrontDoor
+		"azurerm_cdn_frontdoor_profile":         nil,
+		"azurerm_cdn_frontdoor_custom_domain":   nil,
+		"azurerm_cdn_frontdoor_endpoint":        nil,
+		"azurerm_cdn_frontdoor_firewall_policy": nil,
+	}
+}
+
 func (r Registration) Resources() []sdk.Resource {
 	return []sdk.Resource{
 		ApiManagementNotificationRecipientEmailResource{},
