@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/types"
 
+	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"golang.org/x/tools/go/analysis"
@@ -34,10 +35,15 @@ var AZBP003Analyzer = &analysis.Analyzer{
 	Name:     azbp003Name,
 	Doc:      AZBP003Doc,
 	Run:      runAZBP003,
-	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	Requires: []*analysis.Analyzer{inspect.Analyzer, commentignore.Analyzer},
 }
 
 func runAZBP003(pass *analysis.Pass) (interface{}, error) {
+	ignorer, ok := pass.ResultOf[commentignore.Analyzer].(*commentignore.Ignorer)
+	if !ok {
+		return nil, nil
+	}
+
 	if helper.ShouldSkipPackageForResourceAnalysis(pass.Pkg.Path()) {
 		return nil, nil
 	}
@@ -123,7 +129,7 @@ func runAZBP003(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if loader.ShouldReport(pos.Filename, pos.Line) {
+		if loader.ShouldReport(pos.Filename, pos.Line) && !ignorer.ShouldIgnore(azbp003Name, call) {
 			pass.Reportf(call.Pos(), "%s: use `%s` to convert Enum type instead of explicitly type conversion.\n",
 				azbp003Name, helper.FixedCode("pointer.ToEnum"))
 		}
