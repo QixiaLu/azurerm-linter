@@ -115,6 +115,7 @@ azurerm-linter --no-filter ./internal/services/...
 ### Common Options
 
 ```bash
+--version          # Print version information
 --pr=<number>      # Check GitHub PR
 --remote=<name>    # Specify git remote (origin/upstream)
 --base=<branch>    # Specify base branch
