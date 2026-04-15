@@ -166,7 +166,6 @@ func (r *Runner) detectFilterMode() FilterMode {
 }
 
 // collectFindings walks the analysis graph and returns deduplicated findings.
-// Messages are always stripped of ANSI codes and normalized to relative paths.
 func (r *Runner) collectFindings(graph *checker.Graph) []JSONFinding {
 	var findings []JSONFinding
 	// Deduplicate diagnostics by "file:line:column|message"
@@ -192,7 +191,7 @@ func (r *Runner) collectFindings(graph *checker.Graph) []JSONFinding {
 				CheckID: act.Analyzer.Name,
 				Path:    pos.Filename,
 				Line:    pos.Line,
-				Message: stripANSI(diag.Message),
+				Message: diag.Message,
 			})
 		}
 	}

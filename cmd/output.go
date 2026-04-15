@@ -29,7 +29,6 @@ const (
 	StatusError   Status = "error"
 )
 
-// JSONOutput is the top-level JSON output structure
 type JSONOutput struct {
 	Version  string        `json:"version"`
 	Status   Status        `json:"status"`
@@ -38,13 +37,11 @@ type JSONOutput struct {
 	Findings []JSONFinding `json:"findings"`
 }
 
-// JSONScope describes the analysis scope
 type JSONScope struct {
 	Mode     FilterMode `json:"mode"`
 	Patterns []string   `json:"patterns"`
 }
 
-// JSONSummary holds aggregate counts
 type JSONSummary struct {
 	ChangedFiles int `json:"changed_files"`
 	ChangedLines int `json:"changed_lines"`
@@ -68,6 +65,17 @@ func (r *Runner) emitJSON(status Status, mode FilterMode, patterns []string, fin
 		patterns = []string{}
 	}
 
+	// Sanitize findings for JSON: strip ANSI codes
+	clean := make([]JSONFinding, len(findings))
+	for i, f := range findings {
+		clean[i] = JSONFinding{
+			CheckID: f.CheckID,
+			Path:    f.Path,
+			Line:    f.Line,
+			Message: stripANSI(f.Message),
+		}
+	}
+
 	var changedFiles, changedLines int
 	if loader.IsEnabled() {
 		changedFiles, changedLines = loader.GetStats()
@@ -83,9 +91,9 @@ func (r *Runner) emitJSON(status Status, mode FilterMode, patterns []string, fin
 		Summary: JSONSummary{
 			ChangedFiles: changedFiles,
 			ChangedLines: changedLines,
-			IssueCount:   len(findings),
+			IssueCount:   len(clean),
 		},
-		Findings: findings,
+		Findings: clean,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")
