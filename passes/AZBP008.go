@@ -48,6 +48,8 @@ func runAZBP008(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
+	compositeLiteralsByObject := collectCompositeLiteralDefinitions(pass)
+
 	for _, cached := range schemaInfoList {
 		schemaInfo := cached.Info
 
@@ -71,17 +73,17 @@ func runAZBP008(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		compLit, ok := call.Args[0].(*ast.CompositeLit)
-		if !ok {
+		compLit := resolveCompositeLiteralExpr(pass, call.Args[0], compositeLiteralsByObject)
+		if compLit == nil {
 			continue
 		}
 
-		filePos := pass.Fset.Position(compLit.Pos())
-		if !loader.IsFileChanged(filePos.Filename) {
+		evidenceFile, _ := compositeLiteralEvidence(compLit, pass.Fset)
+		if !loader.IsFileChanged(evidenceFile) {
 			continue
 		}
 
-		enumPkg, enumType, evidenceLines := findChangedSDKEnum(pass, compLit.Elts)
+		enumPkg, enumType, evidenceLines := findChangedSDKEnum(pass, compLit)
 		if enumPkg == "" {
 			continue
 		}
@@ -89,7 +91,7 @@ func runAZBP008(pass *analysis.Pass) (interface{}, error) {
 		reporting.Reportf(pass, reporting.ReportOptions{
 			Rule:          azbp008Name,
 			ReportPos:     call.Pos(),
-			EvidenceFile:  filePos.Filename,
+			EvidenceFile:  evidenceFile,
 			EvidenceLines: evidenceLines,
 			MatchMode:     reporting.MatchModeExactAdded,
 		}, "%s: use %s instead of %s\n",
@@ -102,17 +104,13 @@ func runAZBP008(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func findChangedSDKEnum(pass *analysis.Pass, elts []ast.Expr) (string, string, []int) {
-	enumPkg, enumNamed := extractEnumType(pass, elts)
-	if enumNamed == nil || len(elts) != countEnumConstants(enumNamed) {
+func findChangedSDKEnum(pass *analysis.Pass, compLit *ast.CompositeLit) (string, string, []int) {
+	enumPkg, enumNamed := extractEnumType(pass, compLit.Elts)
+	if enumNamed == nil || len(compLit.Elts) != countEnumConstants(enumNamed) {
 		return "", "", nil
 	}
 
-	evidenceLines := make([]int, 0, len(elts))
-	for _, elt := range elts {
-		pos := pass.Fset.Position(elt.Pos())
-		evidenceLines = append(evidenceLines, pos.Line)
-	}
+	_, evidenceLines := compositeLiteralEvidence(compLit, pass.Fset)
 
 	return enumPkg, enumNamed.Obj().Name(), evidenceLines
 }

@@ -21,6 +21,23 @@ func invalidCases() map[string]*schema.Schema {
 	}
 }
 
+func invalidCasesViaVariable() map[string]*schema.Schema {
+	values := []string{
+		string(virtualmachines.VirtualMachinePriorityTypesLow),
+		string(virtualmachines.VirtualMachinePriorityTypesRegular),
+		string(virtualmachines.VirtualMachinePriorityTypesSpot),
+	}
+
+	return map[string]*schema.Schema{
+		"priority": {
+			Type:         schema.TypeString,
+			Optional:     true,
+			Default:      string(virtualmachines.VirtualMachinePriorityTypesRegular),
+			ValidateFunc: validation.StringInSlice(values, false), // want `AZBP008`
+		},
+	}
+}
+
 func validCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"priority": {

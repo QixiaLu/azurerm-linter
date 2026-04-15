@@ -44,3 +44,17 @@ func invalidCases() map[string]*schema.Schema {
 		},
 	}
 }
+
+func invalidCasesViaVariable() map[string]*schema.Schema {
+	exactlyOneOf := []string{"field_variable", "field_other"}
+	conflictsWith := []string{"field_other"}
+
+	return map[string]*schema.Schema{
+		"field_variable": { // want `AZSD003`
+			Type:          schema.TypeString,
+			Optional:      true,
+			ExactlyOneOf:  exactlyOneOf,
+			ConflictsWith: conflictsWith,
+		},
+	}
+}
