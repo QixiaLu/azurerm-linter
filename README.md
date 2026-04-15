@@ -121,6 +121,7 @@ azurerm-linter --no-filter ./internal/services/...
 --base=<branch>    # Specify base branch
 --diff=<file>      # Read diff from file
 --no-filter        # Analyze all lines (not just changes)
+--output=<format>  # Output format: text (default) or json
 --list             # List all available checks
 --help             # Show help
 ```
@@ -129,7 +130,9 @@ azurerm-linter --no-filter ./internal/services/...
 
 ### Output
 
-The tool prints results directly to **standard output (console/terminal)**:
+The tool prints results directly to **standard output (console/terminal)**.
+
+Use `--output json` for machine-readable JSON output (see [JSON Output](#json-output) below).
 
 **If issues are found:**
 - Each issue is printed with file path, line number, and check ID
@@ -181,6 +184,49 @@ Actual order:
 
 2026/01/05 10:40:40 Found 9 issue(s)
 ```
+
+#### JSON Output
+
+Use `--output json` to get structured JSON output, useful for CI pipelines and editor integrations:
+
+```bash
+azurerm-linter --output json
+```
+
+The JSON envelope has the following structure:
+
+```json
+{
+  "version": "v0.1.9",
+  "status": "issues_found",
+  "scope": {
+    "mode": "local",
+    "patterns": []
+  },
+  "summary": {
+    "changed_files": 9,
+    "changed_lines": 1553,
+    "issue_count": 2
+  },
+  "findings": [
+    {
+      "check_id": "AZBP001",
+      "path": "internal/services/policy/resource.go",
+      "line": 55,
+      "message": "AZBP001: string argument \"display_name\" must have ValidateFunc"
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `version` | Linter version |
+| `status` | `"success"`, `"issues_found"`, or `"error"` |
+| `scope.mode` | `"local"`, `"pr"`, `"diff"`, or `"unfiltered"` |
+| `scope.patterns` | Package patterns passed as arguments |
+| `summary` | Counts of changed files, changed lines, and issues |
+| `findings` | Array of diagnostic findings with check ID, file path, line number, and message |
 
 ## Limitations
 
