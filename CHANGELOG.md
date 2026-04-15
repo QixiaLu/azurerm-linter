@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.9 (2026-04-15)
+
+- Add `--output json` flag for machine-readable JSON output (#56)
+- Add `--version` flag to print the installed linter version (#56)
+- Deprecate AZNR007 as many resources legitimately use fixed names, leading to false positives (#56)
+- Improve AZNR005 to validate sort order per section, separated by blank lines (#56)
+- Add comment-ignore support to AZBP003, AZBP004, AZBP005, and AZRE001 (#56)
+- Fix AZBP002 referencing wrong check name in `ShouldIgnore` (#56)
+
 ## v0.1.8 (2026-04-14)
 
 - Include local untracked changes in diff analysis (#52)
