@@ -11,12 +11,13 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/qixialu/azurerm-linter/reporting"
 )
 
 const servicePathPrefix = "internal/services/"
 
 var (
-	hunkRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@`)
+	hunkRegex = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
 
 	// globalChangeSet holds the current loaded ChangeSet
 	// Set once by LoadChanges() before analyzers run, then only read by analyzers
@@ -27,11 +28,22 @@ var (
 	originalDir     string
 )
 
+type Hunk struct {
+	OldStart        int
+	OldCount        int
+	NewStart        int
+	NewCount        int
+	AddedNewLines   map[int]bool
+	DeletedOldLines map[int]bool
+	ContextNewLines map[int]bool
+}
+
 // ChangeSet represents a set of changes loaded from a source
 type ChangeSet struct {
 	changedLines map[string]map[int]bool
 	changedFiles map[string]bool
 	newFiles     map[string]bool
+	hunks        map[string][]Hunk
 }
 
 // NewChangeSet creates a new empty ChangeSet
@@ -40,6 +52,7 @@ func NewChangeSet() *ChangeSet {
 		changedLines: make(map[string]map[int]bool),
 		changedFiles: make(map[string]bool),
 		newFiles:     make(map[string]bool),
+		hunks:        make(map[string][]Hunk),
 	}
 }
 
@@ -62,6 +75,7 @@ type LoaderOptions struct {
 func LoadChanges(opts LoaderOptions) (*ChangeSet, error) {
 	// Check if user explicitly disabled filtering
 	if opts.NoFilter {
+		globalChangeSet = nil
 		log.Println("Change filtering disabled (--no-filter) - analyzing all files")
 		return nil, nil
 	}
@@ -142,14 +156,6 @@ func setupPRWorktree(prNum int, remoteName, baseBranch string) {
 	}
 }
 
-// ShouldReport checks if a specific line in a file should be reported
-func ShouldReport(filename string, line int) bool {
-	if globalChangeSet == nil {
-		return true
-	}
-	return globalChangeSet.ShouldReport(filename, line)
-}
-
 // IsFileChanged checks if a file has any changes
 func IsFileChanged(filename string) bool {
 	if globalChangeSet == nil {
@@ -190,6 +196,14 @@ func GetChangedPackages() []string {
 	return globalChangeSet.getChangedPackages()
 }
 
+// ShouldKeepDiagnostic applies metadata-backed filtering to a diagnostic.
+func ShouldKeepDiagnostic(meta reporting.DiagnosticMeta) bool {
+	if globalChangeSet == nil {
+		return true
+	}
+	return globalChangeSet.ShouldKeepDiagnostic(meta)
+}
+
 // CleanupWorktree cleans up the PR worktree and restores original directory
 func CleanupWorktree() {
 	if originalDir != "" {
@@ -202,24 +216,6 @@ func CleanupWorktree() {
 			log.Printf("Warning: failed to cleanup worktree: %v", err)
 		}
 	}
-}
-
-// ShouldReport checks if a specific line in a file should be reported
-func (cs *ChangeSet) ShouldReport(filename string, line int) bool {
-	if len(cs.changedLines) == 0 {
-		return false
-	}
-
-	relPath := normalizeFilePath(filename)
-	if !isServiceFile(relPath) {
-		return false
-	}
-
-	if lineMap, exists := cs.changedLines[relPath]; exists {
-		return lineMap[line]
-	}
-
-	return false
 }
 
 // IsFileChanged checks if a file has any changes
@@ -250,9 +246,38 @@ func (cs *ChangeSet) IsNewFile(filename string) bool {
 	return cs.newFiles[relPath]
 }
 
+// ShouldKeepDiagnostic applies metadata-backed filtering to a diagnostic.
+func (cs *ChangeSet) ShouldKeepDiagnostic(meta reporting.DiagnosticMeta) bool {
+	evidenceFile := meta.EvidenceFile
+	if evidenceFile == "" {
+		evidenceFile = meta.ReportFile
+	}
+
+	relPath := normalizeFilePath(evidenceFile)
+	if !isServiceFile(relPath) {
+		return false
+	}
+	if !cs.changedFiles[relPath] {
+		return false
+	}
+
+	switch meta.MatchMode {
+	case reporting.MatchModeNewFile:
+		return cs.newFiles[relPath]
+	case reporting.MatchModeFileChanged:
+		return true
+	case reporting.MatchModeSameHunk:
+		return cs.matchesSameHunk(relPath, meta.EvidenceLines)
+	case reporting.MatchModeExactAdded, "":
+		fallthrough
+	default:
+		return cs.matchesAddedLines(relPath, meta.EvidenceLines)
+	}
+}
+
 // isEnabled checks if change tracking is enabled and has data
 func (cs *ChangeSet) isEnabled() bool {
-	return len(cs.changedLines) > 0
+	return len(cs.changedFiles) > 0
 }
 
 // getStats returns statistics about tracked changes
@@ -308,26 +333,82 @@ func (cs *ChangeSet) getChangedPackages() []string {
 	return packages
 }
 
+func (cs *ChangeSet) matchesAddedLines(filePath string, lines []int) bool {
+	lineMap := cs.changedLines[filePath]
+	for _, line := range lines {
+		if lineMap[line] {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *ChangeSet) matchesSameHunk(filePath string, lines []int) bool {
+	for _, line := range lines {
+		for _, hunk := range cs.hunks[filePath] {
+			if hunk.ContainsNewLine(line) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (h Hunk) ContainsNewLine(line int) bool {
+	if h.NewCount <= 0 {
+		return false
+	}
+	return line >= h.NewStart && line < h.NewStart+h.NewCount
+}
+
 // parsePatch parses a patch string and extracts changed line numbers into the ChangeSet
 func (cs *ChangeSet) parsePatch(filePath string, patchContent string) error {
 	scanner := bufio.NewScanner(strings.NewReader(patchContent))
-	var currentLine int
+	var oldLine int
+	var newLine int
 	inHunk := false
+	var currentHunk Hunk
 
 	// Initialize the map once
 	if cs.changedLines[filePath] == nil {
 		cs.changedLines[filePath] = make(map[int]bool)
 	}
 
+	finishHunk := func() {
+		if !inHunk {
+			return
+		}
+		cs.hunks[filePath] = append(cs.hunks[filePath], currentHunk)
+	}
+
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		if matches := hunkRegex.FindStringSubmatch(line); matches != nil {
-			startLine, err := strconv.Atoi(matches[1])
+			if inHunk {
+				finishHunk()
+			}
+
+			oldStart, err := strconv.Atoi(matches[1])
 			if err != nil {
 				continue
 			}
-			currentLine = startLine
+			oldCount, err := parseHunkCount(matches[2])
+			if err != nil {
+				continue
+			}
+			newStart, err := strconv.Atoi(matches[3])
+			if err != nil {
+				continue
+			}
+			newCount, err := parseHunkCount(matches[4])
+			if err != nil {
+				continue
+			}
+
+			oldLine = oldStart
+			newLine = newStart
+			currentHunk = newHunk(oldStart, oldCount, newStart, newCount)
 			inHunk = true
 			continue
 		}
@@ -336,21 +417,49 @@ func (cs *ChangeSet) parsePatch(filePath string, patchContent string) error {
 		}
 
 		if len(line) == 0 {
-			currentLine++
 			continue
 		}
 
 		prefix := line[0]
 		switch prefix {
 		case '+':
-			cs.changedLines[filePath][currentLine] = true
-			currentLine++
+			cs.changedLines[filePath][newLine] = true
+			currentHunk.AddedNewLines[newLine] = true
+			newLine++
+		case '-':
+			currentHunk.DeletedOldLines[oldLine] = true
+			oldLine++
 		case ' ':
-			currentLine++
+			currentHunk.ContextNewLines[newLine] = true
+			oldLine++
+			newLine++
 		}
 	}
 
+	if inHunk {
+		finishHunk()
+	}
+
 	return scanner.Err()
+}
+
+func newHunk(oldStart, oldCount, newStart, newCount int) Hunk {
+	return Hunk{
+		OldStart:        oldStart,
+		OldCount:        oldCount,
+		NewStart:        newStart,
+		NewCount:        newCount,
+		AddedNewLines:   make(map[int]bool),
+		DeletedOldLines: make(map[int]bool),
+		ContextNewLines: make(map[int]bool),
+	}
+}
+
+func parseHunkCount(value string) (int, error) {
+	if value == "" {
+		return 1, nil
+	}
+	return strconv.Atoi(value)
 }
 
 // isServiceFile checks if a path is within the service directory

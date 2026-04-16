@@ -9,6 +9,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -97,9 +98,14 @@ func checkZeroInitPattern(pass *analysis.Pass, inspector *inspector.Inspector, i
 			}
 
 			pos := pass.Fset.Position(assignStmt.Pos())
-			if loader.ShouldReport(pos.Filename, pos.Line) && !ignorer.ShouldIgnore(azbp004Name, assignStmt) {
-				pass.Reportf(assignStmt.Pos(),
-					"%s: can simplify with `%s` since variable is initialized to zero value\n",
+			if loader.IsFileChanged(pos.Filename) && !ignorer.ShouldIgnore(azbp004Name, assignStmt) {
+				reporting.Reportf(pass, reporting.ReportOptions{
+					Rule:          azbp004Name,
+					ReportPos:     assignStmt.Pos(),
+					EvidenceFile:  pos.Filename,
+					EvidenceLines: []int{pos.Line},
+					MatchMode:     reporting.MatchModeExactAdded,
+				}, "%s: can simplify with `%s` since variable is initialized to zero value\n",
 					azbp004Name, helper.FixedCode("pointer.From()"))
 			}
 		}

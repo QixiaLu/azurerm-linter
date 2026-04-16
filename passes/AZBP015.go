@@ -6,6 +6,7 @@ import (
 
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 )
@@ -80,7 +81,7 @@ func runAZBP015(pass *analysis.Pass) (interface{}, error) {
 				}
 
 				pos := pass.Fset.Position(callExpr.Pos())
-				if !loader.ShouldReport(pos.Filename, pos.Line) {
+				if !loader.IsFileChanged(pos.Filename) {
 					return true
 				}
 				if ignorer.ShouldIgnore(azbp015Name, callExpr) {
@@ -113,7 +114,13 @@ func runAZBP015(pass *analysis.Pass) (interface{}, error) {
 					return true
 				}
 
-				pass.Reportf(callExpr.Pos(), "%s: check.That().Key().HasValue() is unnecessary when ImportStep is present - the ImportStep validates that all config values match.\n",
+				reporting.Reportf(pass, reporting.ReportOptions{
+					Rule:          azbp015Name,
+					ReportPos:     callExpr.Pos(),
+					EvidenceFile:  pos.Filename,
+					EvidenceLines: []int{pos.Line},
+					MatchMode:     reporting.MatchModeExactAdded,
+				}, "%s: check.That().Key().HasValue() is unnecessary when ImportStep is present - the ImportStep validates that all config values match.\n",
 					azbp015Name)
 
 				return true

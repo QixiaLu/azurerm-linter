@@ -7,6 +7,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -100,11 +101,17 @@ func runAZBP011(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		pos := pass.Fset.Position(callExpr.Pos())
-		if !loader.ShouldReport(pos.Filename, pos.Line) || ignorer.ShouldIgnore(azbp011Name, callExpr) {
+		if !loader.IsFileChanged(pos.Filename) || ignorer.ShouldIgnore(azbp011Name, callExpr) {
 			return
 		}
 
-		pass.Reportf(callExpr.Pos(), "%s: avoid unnecessary string casting in enum comparison, use direct enum comparison instead\n",
+		reporting.Reportf(pass, reporting.ReportOptions{
+			Rule:          azbp011Name,
+			ReportPos:     callExpr.Pos(),
+			EvidenceFile:  pos.Filename,
+			EvidenceLines: []int{pos.Line},
+			MatchMode:     reporting.MatchModeExactAdded,
+		}, "%s: avoid unnecessary string casting in enum comparison, use direct enum comparison instead\n",
 			azbp011Name)
 	})
 

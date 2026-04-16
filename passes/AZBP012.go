@@ -8,6 +8,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -82,7 +83,7 @@ func runAZBP012(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		pos := pass.Fset.Position(ifStmt.Pos())
-		if !loader.ShouldReport(pos.Filename, pos.Line) {
+		if !loader.IsFileChanged(pos.Filename) {
 			return
 		}
 		if ignorer.ShouldIgnore(azbp012Name, ifStmt) {
@@ -90,8 +91,13 @@ func runAZBP012(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		if target := simpleIfElseSameTarget(ifStmt); target != "" {
-			pass.Reportf(ifStmt.Pos(),
-				"%s: simplify if/else assigning `%s` by setting the else value as the default before the if\n",
+			reporting.Reportf(pass, reporting.ReportOptions{
+				Rule:          azbp012Name,
+				ReportPos:     ifStmt.Pos(),
+				EvidenceFile:  pos.Filename,
+				EvidenceLines: []int{pos.Line},
+				MatchMode:     reporting.MatchModeExactAdded,
+			}, "%s: simplify if/else assigning `%s` by setting the else value as the default before the if\n",
 				azbp012Name, target)
 		}
 	})

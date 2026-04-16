@@ -8,12 +8,13 @@ import (
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 )
 
 const AZSD001Doc = `check MaxItems:1 blocks with single property should be flattened
 
-The AZSD001 analyzer checks that blocks with MaxItems: 1 containing only a single 
+The AZSD001 analyzer checks that blocks with MaxItems: 1 containing only a single
 nested property should be flattened unless there's a comment explaining why.
 
 Example violation:
@@ -154,20 +155,33 @@ func runAZSD001(pass *analysis.Pass) (interface{}, error) {
 
 			if !hasComment {
 				pos := pass.Fset.Position(schemaLit.Pos())
-				if loader.ShouldReport(pos.Filename, pos.Line) {
-					if propertyName := cached.PropertyName; propertyName != "" {
-						pass.Reportf(schemaLit.Pos(), "%s: field `%s` has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
-							azsd001Name, propertyName,
-							helper.IssueLine("MaxItems: 1"),
-							helper.FixedCode("flattening"),
-							helper.FixedCode("'// Additional properties will be added per service team confirmation'"))
-					} else {
-						pass.Reportf(schemaLit.Pos(), "%s: field has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
-							azsd001Name,
-							helper.IssueLine("MaxItems: 1"),
-							helper.FixedCode("flattening"),
-							helper.FixedCode("'// Additional properties will be added per service team confirmation'"))
-					}
+				if !loader.IsFileChanged(pos.Filename) {
+					continue
+				}
+				if propertyName := cached.PropertyName; propertyName != "" {
+					reporting.Reportf(pass, reporting.ReportOptions{
+						Rule:          azsd001Name,
+						ReportPos:     schemaLit.Pos(),
+						EvidenceFile:  pos.Filename,
+						EvidenceLines: []int{pos.Line},
+						MatchMode:     reporting.MatchModeExactAdded,
+					}, "%s: field `%s` has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
+						azsd001Name, propertyName,
+						helper.IssueLine("MaxItems: 1"),
+						helper.FixedCode("flattening"),
+						helper.FixedCode("'// Additional properties will be added per service team confirmation'"))
+				} else {
+					reporting.Reportf(pass, reporting.ReportOptions{
+						Rule:          azsd001Name,
+						ReportPos:     schemaLit.Pos(),
+						EvidenceFile:  pos.Filename,
+						EvidenceLines: []int{pos.Line},
+						MatchMode:     reporting.MatchModeExactAdded,
+					}, "%s: field has %s with only one nested property - consider %s or add inline comment explaining why (e.g., %s)\n",
+						azsd001Name,
+						helper.IssueLine("MaxItems: 1"),
+						helper.FixedCode("flattening"),
+						helper.FixedCode("'// Additional properties will be added per service team confirmation'"))
 				}
 			}
 		}

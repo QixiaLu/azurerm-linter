@@ -32,9 +32,21 @@ func (r Registration) InvalidSupportedResources() map[string]*pluginsdk.Resource
 	}
 }
 
-// Sectioned map sorted within each section - should pass
+func (r Registration) InvalidSupportedResourcesViaVariable() map[string]*pluginsdk.Resource {
+	resources := map[string]*pluginsdk.Resource{ // want `AZNR005`
+		"azurerm_availability_set":       nil,
+		"azurerm_dedicated_host":         nil,
+		"azurerm_managed_disk":           nil,
+		"azurerm_disk_encryption_set":    nil,
+		"azurerm_ssh_public_key":         nil,
+		"azurerm_managed_disk_sas_token": nil,
+	}
+
+	return resources
+}
+
 func (r Registration) SectionedDataSources() map[string]*pluginsdk.Resource {
-	return map[string]*pluginsdk.Resource{
+	return map[string]*pluginsdk.Resource{ // want `AZNR005`
 		// CDN
 		"azurerm_cdn_profile": nil,
 
@@ -49,7 +61,6 @@ func (r Registration) SectionedDataSources() map[string]*pluginsdk.Resource {
 	}
 }
 
-// Sectioned map with unsorted entries in one section - should fail
 func (r Registration) InvalidSectionedDataSources() map[string]*pluginsdk.Resource {
 	return map[string]*pluginsdk.Resource{ // want `AZNR005`
 		// CDN
@@ -75,6 +86,15 @@ func (r Registration) InvalidResources() []sdk.Resource {
 		ApiManagementNotificationRecipientUserResource{},
 		ApiManagementNotificationRecipientEmailResource{},
 	}
+}
+
+func (r Registration) InvalidResourcesViaVariable() []sdk.Resource {
+	resources := []sdk.Resource{ // want `AZNR005`
+		ApiManagementNotificationRecipientUserResource{},
+		ApiManagementNotificationRecipientEmailResource{},
+	}
+
+	return resources
 }
 
 type ApiManagementNotificationRecipientEmailResource struct{}

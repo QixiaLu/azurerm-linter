@@ -8,6 +8,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -110,13 +111,19 @@ func runAZBP006(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			pos := pass.Fset.Position(kv.Pos())
-			if !loader.ShouldReport(pos.Filename, pos.Line) {
+			if !loader.IsFileChanged(pos.Filename) {
 				continue
 			}
 			if ignorer.ShouldIgnore(azbp006Name, kv) {
 				continue
 			}
-			pass.Reportf(kv.Pos(), "%s: redundant %s assignment to pointer field %q - %s\n",
+			reporting.Reportf(pass, reporting.ReportOptions{
+				Rule:          azbp006Name,
+				ReportPos:     kv.Pos(),
+				EvidenceFile:  pos.Filename,
+				EvidenceLines: []int{pos.Line},
+				MatchMode:     reporting.MatchModeExactAdded,
+			}, "%s: redundant %s assignment to pointer field %q - %s\n",
 				azbp006Name, helper.IssueLine("nil"), fieldName, helper.FixedCode("omit the field"))
 		}
 	})

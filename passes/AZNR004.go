@@ -8,6 +8,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -139,7 +140,7 @@ func runAZNR004(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			pos := pass.Fset.Position(retStmt.Pos())
-			if !loader.ShouldReport(pos.Filename, pos.Line) {
+			if !loader.IsFileChanged(pos.Filename) {
 				return true
 			}
 
@@ -147,7 +148,13 @@ func runAZNR004(pass *analysis.Pass) (interface{}, error) {
 				return true
 			}
 
-			pass.Reportf(retStmt.Pos(), "%s: flatten function '%s' should return %s instead of %s\n",
+			reporting.Reportf(pass, reporting.ReportOptions{
+				Rule:          aznr004Name,
+				ReportPos:     retStmt.Pos(),
+				EvidenceFile:  pos.Filename,
+				EvidenceLines: []int{pos.Line},
+				MatchMode:     reporting.MatchModeExactAdded,
+			}, "%s: flatten function '%s' should return %s instead of %s\n",
 				aznr004Name,
 				funcName,
 				helper.FixedCode("an empty slice"),

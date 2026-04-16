@@ -8,6 +8,7 @@ import (
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -15,7 +16,7 @@ import (
 
 const AZNR003Doc = `check that expand/flatten functions are defined as receiver methods
 
-The AZNR003 analyzer reports when expand* or flatten* functions are defined as 
+The AZNR003 analyzer reports when expand* or flatten* functions are defined as
 global/package-level functions instead of receiver methods on a resource type.
 
 This check only applies to typed resources.
@@ -96,7 +97,7 @@ func runAZNR003(pass *analysis.Pass) (interface{}, error) {
 
 		// Check git filter
 		pos := pass.Fset.Position(funcDecl.Pos())
-		if !loader.ShouldReport(pos.Filename, pos.Line) {
+		if !loader.IsFileChanged(pos.Filename) {
 			return
 		}
 
@@ -125,7 +126,13 @@ func runAZNR003(pass *analysis.Pass) (interface{}, error) {
 			funcType = "flatten"
 		}
 
-		pass.Reportf(funcDecl.Name.Pos(), "%s: %s function '%s' should be defined as a receiver method on the resource type, not as a global function\n",
+		reporting.Reportf(pass, reporting.ReportOptions{
+			Rule:          aznr003Name,
+			ReportPos:     funcDecl.Name.Pos(),
+			EvidenceFile:  pos.Filename,
+			EvidenceLines: []int{pos.Line},
+			MatchMode:     reporting.MatchModeExactAdded,
+		}, "%s: %s function '%s' should be defined as a receiver method on the resource type, not as a global function\n",
 			aznr003Name,
 			funcType,
 			helper.IssueLine(funcName))
