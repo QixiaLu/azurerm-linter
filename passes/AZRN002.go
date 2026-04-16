@@ -8,6 +8,7 @@ import (
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -63,12 +64,20 @@ func runAZRN002(pass *analysis.Pass) (interface{}, error) {
 			suggestedName := strings.ReplaceAll(fieldName, "is_", "")
 			pos := pass.Fset.Position(schemaLit.Pos())
 
-			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(schemaLit.Pos(), "%s: field %q has redundant verbs %s at the beginning of the property (suggested: %q)\n",
-					azrn002Name, fieldName,
-					helper.IssueLine("'is_'"),
-					suggestedName)
+			if !loader.IsFileChanged(pos.Filename) {
+				continue
 			}
+
+			reporting.Reportf(pass, reporting.ReportOptions{
+				Rule:          azrn002Name,
+				ReportPos:     schemaLit.Pos(),
+				EvidenceFile:  pos.Filename,
+				EvidenceLines: []int{pos.Line},
+				MatchMode:     reporting.MatchModeExactAdded,
+			}, "%s: field %q has redundant verbs %s (suggested: %s)\n",
+				azrn002Name, fieldName,
+				helper.IssueLine("'is_'"),
+				helper.FixedCode(suggestedName))
 		}
 	}
 
