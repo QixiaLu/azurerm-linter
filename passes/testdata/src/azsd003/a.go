@@ -4,6 +4,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
+var schemaBuckets = []map[string]*schema.Schema{
+	validCases(),
+	invalidCases(),
+	invalidCasesViaVariable(),
+}
+
 func validCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"field_with_exactlyone": {
@@ -41,6 +47,20 @@ func invalidCases() map[string]*schema.Schema {
 			Optional:      true,
 			ExactlyOneOf:  []string{"partial_overlap", "field_x"},
 			ConflictsWith: []string{"field_x", "field_y"}, // field_x overlaps
+		},
+	}
+}
+
+func invalidCasesViaVariable() map[string]*schema.Schema {
+	exactlyOneOf := []string{"field_variable", "field_other"}
+	conflictsWith := []string{"field_other"}
+
+	return map[string]*schema.Schema{
+		"field_variable": { // want `AZSD003`
+			Type:          schema.TypeString,
+			Optional:      true,
+			ExactlyOneOf:  exactlyOneOf,
+			ConflictsWith: conflictsWith,
 		},
 	}
 }

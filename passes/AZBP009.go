@@ -8,6 +8,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -21,26 +22,26 @@ which shadows the package import and makes it unusable.
 Example violations:
 
 	import "context"
-	
+
 	func badFunction() {
 		context := "invalid"  // Shadows the context package
 		// Now you can't use context.Background()
 	}
 
 	import "github.com/hashicorp/go-azure-helpers/lang/pointer"
-	
+
 	const pointer := "invalid"  // Shadows the pointer package
 
 Correct usage:
 
 	import "context"
-	
+
 	func goodFunction() {
 		ctx := context.Background()  // Use different variable name
 	}
 
 	import "github.com/hashicorp/go-azure-helpers/lang/pointer"
-	
+
 	const pointerValue := "valid"  // Use different variable name
 `
 
@@ -111,7 +112,7 @@ func runAZBP009(pass *analysis.Pass) (interface{}, error) {
 
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
 		pos := pass.Fset.Position(n.Pos())
-		if !loader.ShouldReport(pos.Filename, pos.Line) || ignorer.ShouldIgnore(azbp009Name, n) {
+		if !loader.IsFileChanged(pos.Filename) || ignorer.ShouldIgnore(azbp009Name, n) {
 			return
 		}
 
@@ -127,7 +128,13 @@ func runAZBP009(pass *analysis.Pass) (interface{}, error) {
 					if valueSpec, ok := spec.(*ast.ValueSpec); ok {
 						for _, name := range valueSpec.Names {
 							if importNames[name.Name] {
-								pass.Reportf(name.Pos(), "%s: variable '%s' shadows imported package name\n",
+								reporting.Reportf(pass, reporting.ReportOptions{
+									Rule:          azbp009Name,
+									ReportPos:     name.Pos(),
+									EvidenceFile:  pos.Filename,
+									EvidenceLines: []int{pos.Line},
+									MatchMode:     reporting.MatchModeExactAdded,
+								}, "%s: variable '%s' shadows imported package name\n",
 									azbp009Name, helper.FixedCode(name.Name))
 							}
 						}
@@ -139,7 +146,13 @@ func runAZBP009(pass *analysis.Pass) (interface{}, error) {
 				for _, lhs := range node.Lhs {
 					if ident, ok := lhs.(*ast.Ident); ok {
 						if importNames[ident.Name] {
-							pass.Reportf(ident.Pos(), "%s: variable '%s' shadows imported package name\n",
+							reporting.Reportf(pass, reporting.ReportOptions{
+								Rule:          azbp009Name,
+								ReportPos:     ident.Pos(),
+								EvidenceFile:  pos.Filename,
+								EvidenceLines: []int{pos.Line},
+								MatchMode:     reporting.MatchModeExactAdded,
+							}, "%s: variable '%s' shadows imported package name\n",
 								azbp009Name, helper.FixedCode(ident.Name))
 						}
 					}

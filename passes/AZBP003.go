@@ -7,6 +7,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -129,8 +130,14 @@ func runAZBP003(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if loader.ShouldReport(pos.Filename, pos.Line) && !ignorer.ShouldIgnore(azbp003Name, call) {
-			pass.Reportf(call.Pos(), "%s: use `%s` to convert Enum type instead of explicitly type conversion.\n",
+		if loader.IsFileChanged(pos.Filename) && !ignorer.ShouldIgnore(azbp003Name, call) {
+			reporting.Reportf(pass, reporting.ReportOptions{
+				Rule:          azbp003Name,
+				ReportPos:     call.Pos(),
+				EvidenceFile:  pos.Filename,
+				EvidenceLines: []int{pos.Line},
+				MatchMode:     reporting.MatchModeExactAdded,
+			}, "%s: use `%s` to convert Enum type instead of explicitly type conversion.\n",
 				azbp003Name, helper.FixedCode("pointer.ToEnum"))
 		}
 	})

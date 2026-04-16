@@ -9,6 +9,7 @@ import (
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -121,10 +122,18 @@ func checkSchemaForViolations(pass *analysis.Pass, schemaInfo *schema.SchemaInfo
 		return
 	}
 
-	if loader.ShouldReport(pos.Filename, pos.Line) {
-		pass.Reportf(schemaInfo.AstCompositeLit.Pos(), "%s: %s\n",
-			azsd004Name, helper.FixedCode("computed attributes should only contain computed-only nested schemas"))
+	if !loader.IsFileChanged(pos.Filename) {
+		return
 	}
+
+	reporting.Reportf(pass, reporting.ReportOptions{
+		Rule:          azsd004Name,
+		ReportPos:     schemaInfo.AstCompositeLit.Pos(),
+		EvidenceFile:  pos.Filename,
+		EvidenceLines: []int{pos.Line},
+		MatchMode:     reporting.MatchModeExactAdded,
+	}, "%s: %s\n",
+		azsd004Name, helper.FixedCode("computed attributes should only contain computed-only nested schemas"))
 }
 
 // checkElemChildren checks nested schemas in Elem fields

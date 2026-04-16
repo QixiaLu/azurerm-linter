@@ -44,4 +44,5 @@ require (
 replace (
 	github.com/hashicorp/go-azure-helpers/lang/pointer => ./src/github.com/hashicorp/go-azure-helpers/lang/pointer
 	github.com/hashicorp/go-azure-sdk/resource-manager/compute/2024-03-01/virtualmachines => ./src/github.com/hashicorp/go-azure-sdk/resource-manager/compute/2024-03-01/virtualmachines
+	github.com/hashicorp/terraform-plugin-sdk/v2 => ./src/github.com/hashicorp/terraform-plugin-sdk/v2
 )

@@ -7,6 +7,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -64,7 +65,7 @@ func runAZBP014(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		pos := pass.Fset.Position(lit.Pos())
-		if !loader.ShouldReport(pos.Filename, pos.Line) {
+		if !loader.IsFileChanged(pos.Filename) {
 			return
 		}
 		if ignorer.ShouldIgnore(azbp014Name, lit) {
@@ -100,8 +101,13 @@ func runAZBP014(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		pass.Reportf(lit.Pos(),
-			"%s: use %s.%s() instead of empty %s literal\n",
+		reporting.Reportf(pass, reporting.ReportOptions{
+			Rule:          azbp014Name,
+			ReportPos:     lit.Pos(),
+			EvidenceFile:  pos.Filename,
+			EvidenceLines: []int{pos.Line},
+			MatchMode:     reporting.MatchModeExactAdded,
+		}, "%s: use %s.%s() instead of empty %s literal\n",
 			azbp014Name, pkg.Name(), defaultFuncName, typeName)
 	})
 

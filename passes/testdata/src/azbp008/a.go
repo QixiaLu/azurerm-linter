@@ -6,6 +6,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
+var schemaBuckets = []map[string]*schema.Schema{
+	invalidCases(),
+	invalidCasesViaVariable(),
+	validCases(),
+	validLiteralStrings(),
+	validMixedContent(),
+	validNotSameContent(),
+}
+
 func invalidCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"priority": {
@@ -17,6 +26,23 @@ func invalidCases() map[string]*schema.Schema {
 				string(virtualmachines.VirtualMachinePriorityTypesRegular),
 				string(virtualmachines.VirtualMachinePriorityTypesSpot),
 			}, false),
+		},
+	}
+}
+
+func invalidCasesViaVariable() map[string]*schema.Schema {
+	values := []string{
+		string(virtualmachines.VirtualMachinePriorityTypesLow),
+		string(virtualmachines.VirtualMachinePriorityTypesRegular),
+		string(virtualmachines.VirtualMachinePriorityTypesSpot),
+	}
+
+	return map[string]*schema.Schema{
+		"priority": {
+			Type:         schema.TypeString,
+			Optional:     true,
+			Default:      string(virtualmachines.VirtualMachinePriorityTypesRegular),
+			ValidateFunc: validation.StringInSlice(values, false), // want `AZBP008`
 		},
 	}
 }

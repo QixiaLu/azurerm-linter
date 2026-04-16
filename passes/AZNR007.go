@@ -10,6 +10,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -33,7 +34,7 @@ Valid usage:
 
   name = "acctestkv%[1]d"
   name = "acctestresource%d"
-  name = "${azurerm_resource_group.test.name}-replica"
+	name = "${azurerm_resource_group.test.name}-replica"
 
 Interpolated names (containing "${...}") are automatically skipped.
 Excluded resource types: azurerm_private_dns_zone (name is a domain, not a test identifier).
@@ -122,12 +123,11 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 				matchLine += strings.Count(value[:loc[0]], "\n")
 			}
 
-			if !loader.ShouldReport(pos.Filename, matchLine) {
+			if !loader.IsFileChanged(pos.Filename) {
 				continue
 			}
 
 			if !strings.HasPrefix(nameValue, "acctest") {
-				// Skip interpolated/dynamic names like "${azurerm_xxx.test.name}-replica"
 				if strings.Contains(nameValue, "${") {
 					continue
 				}
@@ -136,7 +136,13 @@ func runAZNR007(pass *analysis.Pass) (interface{}, error) {
 				if isRawString && matchLine > pos.Line {
 					reportPos = pass.Fset.File(lit.Pos()).LineStart(matchLine)
 				}
-				pass.Reportf(reportPos, "%s: resource name %q should start with %s\n",
+				reporting.Reportf(pass, reporting.ReportOptions{
+					Rule:          aznr007Name,
+					ReportPos:     reportPos,
+					EvidenceFile:  pos.Filename,
+					EvidenceLines: []int{matchLine},
+					MatchMode:     reporting.MatchModeExactAdded,
+				}, "%s: resource name %q should start with %s\n",
 					aznr007Name, nameValue,
 					helper.FixedCode(`"acctest"`))
 			}

@@ -12,6 +12,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -33,7 +34,7 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 func (r Registration) Resources() []sdk.Resource {
 	return []sdk.Resource{
 		WorkspaceResource{},
-		ApiManagementResource{}, // should come first alphabetically  
+		ApiManagementResource{}, // should come first alphabetically
 	}
 }
 
@@ -79,6 +80,9 @@ func runAZNR005(pass *analysis.Pass) (interface{}, error) {
 	for _, file := range pass.Files {
 		pos := pass.Fset.Position(file.Pos())
 		if !strings.HasSuffix(filepath.Base(pos.Filename), "registration.go") {
+			continue
+		}
+		if !loader.IsFileChanged(pos.Filename) {
 			continue
 		}
 
@@ -132,27 +136,113 @@ func analyzeRegistrationMethod(pass *analysis.Pass, funcDecl *ast.FuncDecl) {
 		return
 	}
 
+	compositeLiteralsByObject := make(map[types.Object]*ast.CompositeLit)
+	reported := make(map[token.Pos]bool)
+
 	ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
-		if node, ok := n.(*ast.ReturnStmt); ok {
+		switch node := n.(type) {
+		case *ast.ValueSpec:
+			recordCompositeLiteralDefinitionsForIdents(pass, compositeLiteralsByObject, node.Names, node.Values)
+		case *ast.AssignStmt:
+			recordCompositeLiteralDefinitions(pass, compositeLiteralsByObject, node.Lhs, node.Rhs)
+		case *ast.ReturnStmt:
 			for _, expr := range node.Results {
-				if compositeLit, ok := expr.(*ast.CompositeLit); ok {
-					validateSorting(pass, compositeLit)
-				}
+				reportCompositeLiteral(pass, compositeLiteralsByObject, reported, expr)
 			}
 		}
 		return true
 	})
 }
 
-// validateSorting examines composite literals for sorting violations
-func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) {
-	if compositeLit.Type == nil {
+func recordCompositeLiteralDefinitionsForIdents(pass *analysis.Pass, composites map[types.Object]*ast.CompositeLit, lhs []*ast.Ident, rhs []ast.Expr) {
+	for index, ident := range lhs {
+		if index >= len(rhs) {
+			break
+		}
+		if ident == nil || ident.Name == "_" {
+			continue
+		}
+
+		compositeLit, ok := rhs[index].(*ast.CompositeLit)
+		if !ok {
+			continue
+		}
+
+		if obj := objectForIdent(pass, ident); obj != nil {
+			composites[obj] = compositeLit
+		}
+	}
+}
+
+func recordCompositeLiteralDefinitions(pass *analysis.Pass, composites map[types.Object]*ast.CompositeLit, lhs []ast.Expr, rhs []ast.Expr) {
+	for index, leftExpr := range lhs {
+		if index >= len(rhs) {
+			break
+		}
+
+		ident, ok := leftExpr.(*ast.Ident)
+		if !ok || ident.Name == "_" {
+			continue
+		}
+
+		compositeLit, ok := rhs[index].(*ast.CompositeLit)
+		if !ok {
+			continue
+		}
+
+		if obj := objectForIdent(pass, ident); obj != nil {
+			composites[obj] = compositeLit
+		}
+	}
+}
+
+func reportCompositeLiteral(pass *analysis.Pass, composites map[types.Object]*ast.CompositeLit, reported map[token.Pos]bool, expr ast.Expr) {
+	if compositeLit, ok := expr.(*ast.CompositeLit); ok {
+		reportSorting(pass, reported, compositeLit)
 		return
+	}
+
+	ident, ok := expr.(*ast.Ident)
+	if !ok {
+		return
+	}
+
+	obj := objectForIdent(pass, ident)
+	if obj == nil {
+		return
+	}
+
+	if compositeLit := composites[obj]; compositeLit != nil {
+		reportSorting(pass, reported, compositeLit)
+	}
+}
+
+func reportSorting(pass *analysis.Pass, reported map[token.Pos]bool, compositeLit *ast.CompositeLit) {
+	if reported[compositeLit.Pos()] {
+		return
+	}
+	if validateSorting(pass, compositeLit) {
+		reported[compositeLit.Pos()] = true
+	}
+}
+
+func objectForIdent(pass *analysis.Pass, ident *ast.Ident) types.Object {
+	if obj := pass.TypesInfo.ObjectOf(ident); obj != nil {
+		return obj
+	}
+
+	return pass.TypesInfo.Uses[ident]
+}
+
+// validateSorting examines composite literals for sorting violations
+func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) bool {
+	if compositeLit.Type == nil {
+		return false
 	}
 
 	typ := pass.TypesInfo.TypeOf(compositeLit)
 	if typ == nil {
-		return
+		return false
 	}
 
 	var isMap, isSlice bool
@@ -162,55 +252,36 @@ func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) {
 	case *types.Slice:
 		isSlice = true
 	default:
-		return
+		return false
 	}
 
-	sections := splitIntoSections(pass.Fset, compositeLit.Elts)
-
-	for _, sectionElts := range sections {
-		var registrations []string
-		if isMap {
-			registrations = extractRegistrationMapKeys(sectionElts)
-		} else if isSlice {
-			registrations = extractRegistrationResourceNames(sectionElts)
-		}
-
-		if !sort.StringsAreSorted(registrations) {
-			for _, elt := range sectionElts {
-				pos := pass.Fset.Position(elt.Pos())
-				if loader.ShouldReport(pos.Filename, pos.Line) {
-					pass.Reportf(compositeLit.Pos(), "%s: %s\n",
-						aznr005Name, helper.FixedCode("registrations should be sorted alphabetically"))
-					return
-				}
-			}
-		}
-	}
-}
-
-// splitIntoSections groups consecutive elements into sections separated by empty lines
-func splitIntoSections(fset *token.FileSet, elts []ast.Expr) [][]ast.Expr {
-	if len(elts) <= 1 {
-		return [][]ast.Expr{elts}
+	var registrations []string
+	if isMap {
+		registrations = extractRegistrationMapKeys(compositeLit.Elts)
+	} else if isSlice {
+		registrations = extractRegistrationResourceNames(compositeLit.Elts)
 	}
 
-	var sections [][]ast.Expr
-	currentSection := []ast.Expr{elts[0]}
-
-	for i := 1; i < len(elts); i++ {
-		prevLine := fset.Position(elts[i-1].End()).Line
-		currLine := fset.Position(elts[i].Pos()).Line
-		// If there's more than one line gap, it's a new section
-		if currLine-prevLine > 1 {
-			sections = append(sections, currentSection)
-			currentSection = []ast.Expr{elts[i]}
-		} else {
-			currentSection = append(currentSection, elts[i])
-		}
+	if sort.StringsAreSorted(registrations) {
+		return false
 	}
 
-	sections = append(sections, currentSection)
-	return sections
+	evidenceLines := make([]int, 0, len(compositeLit.Elts))
+	for _, elt := range compositeLit.Elts {
+		pos := pass.Fset.Position(elt.Pos())
+		evidenceLines = append(evidenceLines, pos.Line)
+	}
+
+	reporting.Report(pass, reporting.ReportOptions{
+		Rule:          aznr005Name,
+		ReportPos:     compositeLit.Pos(),
+		Message:       aznr005Name + ": " + helper.FixedCode("registrations should be sorted alphabetically") + "\n",
+		EvidenceFile:  pass.Fset.Position(compositeLit.Pos()).Filename,
+		EvidenceLines: evidenceLines,
+		MatchMode:     reporting.MatchModeSameHunk,
+	})
+
+	return true
 }
 
 // extractRegistrationMapKeys extracts resource name keys from registration map literals

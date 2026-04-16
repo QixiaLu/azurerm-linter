@@ -8,6 +8,7 @@ import (
 
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -84,11 +85,17 @@ func runAZNR006(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		pos := pass.Fset.Position(ifStmt.Pos())
-		if !loader.ShouldReport(pos.Filename, pos.Line) || ignorer.ShouldIgnore(aznr006Name, ifStmt) {
+		if !loader.IsFileChanged(pos.Filename) || ignorer.ShouldIgnore(aznr006Name, ifStmt) {
 			return
 		}
 
-		pass.Reportf(ifStmt.Pos(), "%s: perform nil checks inside the flatten method instead of before calling it\n",
+		reporting.Reportf(pass, reporting.ReportOptions{
+			Rule:          aznr006Name,
+			ReportPos:     ifStmt.Pos(),
+			EvidenceFile:  pos.Filename,
+			EvidenceLines: []int{pos.Line},
+			MatchMode:     reporting.MatchModeExactAdded,
+		}, "%s: perform nil checks inside the flatten method instead of before calling it\n",
 			aznr006Name)
 	})
 

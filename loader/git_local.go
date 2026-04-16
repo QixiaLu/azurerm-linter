@@ -1,7 +1,6 @@
 package loader
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -35,9 +34,8 @@ func (l *LocalGitLoader) Load() (*ChangeSet, error) {
 	if err := processDiffWithWorktree(cs, targetCommit); err != nil {
 		return nil, fmt.Errorf("failed to parse diff: %w", err)
 	}
-
 	if err := addUntrackedFiles(cs); err != nil {
-		log.Printf("Warning: failed to detect untracked files: %v", err)
+		return nil, fmt.Errorf("failed to include untracked files: %w", err)
 	}
 
 	log.Printf("✓ Found %d changed files with %d changed lines",
@@ -60,6 +58,52 @@ func processDiffWithWorktree(cs *ChangeSet, diffRef string) error {
 	}
 
 	return cs.parseDiffOutput(diffOutput)
+}
+
+func addUntrackedFiles(cs *ChangeSet) error {
+	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to list untracked files: %w, output: %s", err, strings.TrimSpace(string(output)))
+	}
+
+	fileNames := strings.Fields(string(output))
+	return markUntrackedFiles(cs, fileNames)
+}
+
+func markUntrackedFiles(cs *ChangeSet, fileNames []string) error {
+	for _, fileName := range fileNames {
+		normalizedPath := normalizeFilePath(fileName)
+		if !isServiceFile(normalizedPath) {
+			continue
+		}
+
+		content, err := os.ReadFile(fileName)
+		if err != nil {
+			return fmt.Errorf("failed to read untracked file %s: %w", fileName, err)
+		}
+
+		cs.changedFiles[normalizedPath] = true
+		cs.newFiles[normalizedPath] = true
+
+		lineCount := strings.Count(string(content), "\n")
+		if len(content) > 0 && content[len(content)-1] != '\n' {
+			lineCount++
+		}
+
+		if lineCount == 0 {
+			continue
+		}
+
+		if cs.changedLines[normalizedPath] == nil {
+			cs.changedLines[normalizedPath] = make(map[int]bool, lineCount)
+		}
+		for line := 1; line <= lineCount; line++ {
+			cs.changedLines[normalizedPath][line] = true
+		}
+	}
+
+	return nil
 }
 
 // resolveForLocal resolves the diff reference for comparison.
@@ -93,12 +137,16 @@ func resolveForLocal(repo *git.Repository, remoteName, baseBranch string) (strin
 
 	// Use shell 'git merge-base' command for robust merge-base detection
 	mergeBaseHash, err := getMergeBase(targetRefName, "HEAD")
-	if err != nil {
-		return targetRefName, err
+	return resolveDiffReference(targetRefName, mergeBaseHash, err)
+}
+
+func resolveDiffReference(targetRefName, mergeBaseHash string, mergeBaseErr error) (string, error) {
+	if mergeBaseErr != nil {
+		log.Printf("Warning: git merge-base failed for %s, falling back to direct diff against that ref: %v", targetRefName, mergeBaseErr)
+		return targetRefName, nil
 	}
 
 	log.Printf("Merge-base with %s: %s", targetRefName, mergeBaseHash[:7])
-
 	return mergeBaseHash, nil
 }
 
@@ -178,54 +226,6 @@ func getUpstreamFromConfig(repo *git.Repository, currentBranch string) (remote, 
 	}
 
 	return remote, branch, true
-}
-
-// addUntrackedFiles finds untracked Go files and adds them to the ChangeSet.
-// This ensures new files that haven't been staged yet are still analyzed.
-func addUntrackedFiles(cs *ChangeSet) error {
-	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard", "--", "*.go")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("git ls-files failed: %w", err)
-	}
-
-	var added int
-	for _, filePath := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		filePath = strings.TrimSpace(filePath)
-		if filePath == "" || !isServiceFile(filePath) {
-			continue
-		}
-
-		normalized := normalizeFilePath(filePath)
-
-		// Skip if already tracked (e.g., from git diff)
-		if cs.changedFiles[normalized] {
-			continue
-		}
-
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			log.Printf("Warning: failed to read untracked file %s: %v", filePath, err)
-			continue
-		}
-
-		// Mark every line as changed
-		lineCount := bytes.Count(content, []byte("\n")) + 1
-		cs.changedLines[normalized] = make(map[int]bool, lineCount)
-		for i := 1; i <= lineCount; i++ {
-			cs.changedLines[normalized][i] = true
-		}
-
-		cs.changedFiles[normalized] = true
-		cs.newFiles[normalized] = true
-		added++
-	}
-
-	if added > 0 {
-		log.Printf("Included %d untracked file(s)", added)
-	}
-
-	return nil
 }
 
 // autoDetectRemote auto-detects the remote

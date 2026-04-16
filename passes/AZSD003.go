@@ -3,6 +3,7 @@ package passes
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 	"strconv"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -66,6 +68,8 @@ func runAZSD003(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
+	compositeLiteralsByObject := collectCompositeLiteralDefinitions(pass)
+
 	for _, cached := range schemaInfoList {
 		schemaInfo := cached.Info
 		schemaLit := schemaInfo.AstCompositeLit
@@ -82,12 +86,12 @@ func runAZSD003(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		exactlyOneOfValues := extractStringSliceValues(exactlyOneOfKV.Value)
+		exactlyOneOfValues, exactlyOneOfFile, exactlyOneOfLines := extractStringSliceValues(pass, exactlyOneOfKV.Value, compositeLiteralsByObject)
 		if len(exactlyOneOfValues) == 0 {
 			continue
 		}
 
-		conflictsWithValues := extractStringSliceValues(conflictsWithKV.Value)
+		conflictsWithValues, conflictsWithFile, conflictsWithLines := extractStringSliceValues(pass, conflictsWithKV.Value, compositeLiteralsByObject)
 		if len(conflictsWithValues) == 0 {
 			continue
 		}
@@ -106,12 +110,19 @@ func runAZSD003(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		if len(redundantFields) > 0 {
-			pos := pass.Fset.Position(schemaLit.Pos())
-			if loader.ShouldReport(pos.Filename, pos.Line) {
-				pass.Reportf(schemaLit.Pos(), "%s: ConflictsWith contains %s which is redundant - already covered by ExactlyOneOf",
-					azsd003Name,
-					helper.IssueLine(strings.Join(redundantFields, ", ")))
+			evidenceFile, evidenceLines := schemaLitEvidence(pass, schemaLit, exactlyOneOfFile, exactlyOneOfLines, conflictsWithFile, conflictsWithLines)
+			if !loader.IsFileChanged(evidenceFile) {
+				continue
 			}
+			reporting.Reportf(pass, reporting.ReportOptions{
+				Rule:          azsd003Name,
+				ReportPos:     schemaLit.Pos(),
+				EvidenceFile:  evidenceFile,
+				EvidenceLines: evidenceLines,
+				MatchMode:     reporting.MatchModeExactAdded,
+			}, "%s: ConflictsWith contains %s which is redundant - already covered by ExactlyOneOf",
+				azsd003Name,
+				helper.IssueLine(strings.Join(redundantFields, ", ")))
 		}
 	}
 
@@ -119,12 +130,12 @@ func runAZSD003(pass *analysis.Pass) (interface{}, error) {
 }
 
 // extractStringSliceValues extracts string values from a composite literal like []string{"a", "b"}
-func extractStringSliceValues(expr ast.Expr) []string {
+func extractStringSliceValues(pass *analysis.Pass, expr ast.Expr, composites map[types.Object]*ast.CompositeLit) ([]string, string, []int) {
 	var values []string
 
-	compositeLit, ok := expr.(*ast.CompositeLit)
-	if !ok {
-		return values
+	compositeLit := resolveCompositeLiteralExpr(pass, expr, composites)
+	if compositeLit == nil {
+		return values, "", nil
 	}
 
 	for _, elt := range compositeLit.Elts {
@@ -135,5 +146,24 @@ func extractStringSliceValues(expr ast.Expr) []string {
 		}
 	}
 
-	return values
+	evidenceFile, evidenceLines := compositeLiteralEvidence(compositeLit, pass.Fset)
+	return values, evidenceFile, evidenceLines
+}
+
+func schemaLitEvidence(pass *analysis.Pass, schemaLit *ast.CompositeLit, exactlyOneOfFile string, exactlyOneOfLines []int, conflictsWithFile string, conflictsWithLines []int) (string, []int) {
+	defaultPos := pass.Fset.Position(schemaLit.Pos())
+	if exactlyOneOfFile == "" || conflictsWithFile == "" {
+		return defaultPos.Filename, []int{defaultPos.Line}
+	}
+	if exactlyOneOfFile != conflictsWithFile {
+		return defaultPos.Filename, []int{defaultPos.Line}
+	}
+
+	combined := append([]int(nil), exactlyOneOfLines...)
+	combined = append(combined, conflictsWithLines...)
+	if len(combined) == 0 {
+		return defaultPos.Filename, []int{defaultPos.Line}
+	}
+
+	return exactlyOneOfFile, combined
 }

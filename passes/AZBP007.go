@@ -7,6 +7,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -98,7 +99,7 @@ func runAZBP007(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			pos := pass.Fset.Position(compositeLit.Pos())
-			if !loader.ShouldReport(pos.Filename, pos.Line) {
+			if !loader.IsFileChanged(pos.Filename) {
 				continue
 			}
 
@@ -106,7 +107,13 @@ func runAZBP007(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 
-			pass.Reportf(compositeLit.Pos(), "%s: use %s instead of %s\n",
+			reporting.Reportf(pass, reporting.ReportOptions{
+				Rule:          azbp007Name,
+				ReportPos:     compositeLit.Pos(),
+				EvidenceFile:  pos.Filename,
+				EvidenceLines: []int{pos.Line},
+				MatchMode:     reporting.MatchModeExactAdded,
+			}, "%s: use %s instead of %s\n",
 				azbp007Name,
 				helper.FixedCode("make([]string, 0)"),
 				helper.IssueLine("[]string{}"))

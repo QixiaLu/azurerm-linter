@@ -9,6 +9,7 @@ import (
 	"github.com/bflad/tfproviderlint/passes/commentignore"
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -94,7 +95,7 @@ func runAZNR008(pass *analysis.Pass) (interface{}, error) {
 			matchLine += strings.Count(value[:loc[0]], "\n")
 		}
 
-		if !loader.ShouldReport(pos.Filename, matchLine) {
+		if !loader.IsFileChanged(pos.Filename) {
 			return
 		}
 
@@ -102,7 +103,13 @@ func runAZNR008(pass *analysis.Pass) (interface{}, error) {
 		if isRawString && matchLine > pos.Line {
 			reportPos = pass.Fset.File(lit.Pos()).LineStart(matchLine)
 		}
-		pass.Reportf(reportPos, "%s: do not %s in test configs\n",
+		reporting.Reportf(pass, reporting.ReportOptions{
+			Rule:          aznr008Name,
+			ReportPos:     reportPos,
+			EvidenceFile:  pos.Filename,
+			EvidenceLines: []int{matchLine},
+			MatchMode:     reporting.MatchModeExactAdded,
+		}, "%s: do not %s in test configs\n",
 			aznr008Name, helper.IssueLine("hardcode resource IDs"))
 	})
 

@@ -9,6 +9,7 @@ import (
 	"github.com/qixialu/azurerm-linter/helper"
 	"github.com/qixialu/azurerm-linter/loader"
 	localschema "github.com/qixialu/azurerm-linter/passes/schema"
+	"github.com/qixialu/azurerm-linter/reporting"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -47,6 +48,8 @@ func runAZBP008(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
+	compositeLiteralsByObject := collectCompositeLiteralDefinitions(pass)
+
 	for _, cached := range schemaInfoList {
 		schemaInfo := cached.Info
 
@@ -70,17 +73,28 @@ func runAZBP008(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		compLit, ok := call.Args[0].(*ast.CompositeLit)
-		if !ok {
+		compLit := resolveCompositeLiteralExpr(pass, call.Args[0], compositeLiteralsByObject)
+		if compLit == nil {
 			continue
 		}
 
-		enumPkg, enumType := findChangedSDKEnum(pass, compLit.Elts)
+		evidenceFile, _ := compositeLiteralEvidence(compLit, pass.Fset)
+		if !loader.IsFileChanged(evidenceFile) {
+			continue
+		}
+
+		enumPkg, enumType, evidenceLines := findChangedSDKEnum(pass, compLit)
 		if enumPkg == "" {
 			continue
 		}
 
-		pass.Reportf(call.Pos(), "%s: use %s instead of %s\n",
+		reporting.Reportf(pass, reporting.ReportOptions{
+			Rule:          azbp008Name,
+			ReportPos:     call.Pos(),
+			EvidenceFile:  evidenceFile,
+			EvidenceLines: evidenceLines,
+			MatchMode:     reporting.MatchModeExactAdded,
+		}, "%s: use %s instead of %s\n",
 			azbp008Name,
 			helper.FixedCode(enumPkg+".PossibleValuesFor"+enumType+"()"),
 			helper.IssueLine("manually listing enum values"),
@@ -90,19 +104,15 @@ func runAZBP008(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func findChangedSDKEnum(pass *analysis.Pass, elts []ast.Expr) (string, string) {
-	enumPkg, enumNamed := extractEnumType(pass, elts)
-	if enumNamed == nil || len(elts) != countEnumConstants(enumNamed) {
-		return "", ""
+func findChangedSDKEnum(pass *analysis.Pass, compLit *ast.CompositeLit) (string, string, []int) {
+	enumPkg, enumNamed := extractEnumType(pass, compLit.Elts)
+	if enumNamed == nil || len(compLit.Elts) != countEnumConstants(enumNamed) {
+		return "", "", nil
 	}
 
-	for _, elt := range elts {
-		pos := pass.Fset.Position(elt.Pos())
-		if loader.ShouldReport(pos.Filename, pos.Line) {
-			return enumPkg, enumNamed.Obj().Name()
-		}
-	}
-	return "", ""
+	_, evidenceLines := compositeLiteralEvidence(compLit, pass.Fset)
+
+	return enumPkg, enumNamed.Obj().Name(), evidenceLines
 }
 
 // extractEnumType returns the enum package and type if all elements are the same SDK enum type.
