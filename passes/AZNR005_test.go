@@ -10,6 +10,13 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
+func resetChangesForTest(t *testing.T) {
+	t.Helper()
+	if _, err := loader.LoadChanges(loader.LoaderOptions{NoFilter: true}); err != nil {
+		t.Fatalf("LoadChanges() cleanup error = %v", err)
+	}
+}
+
 func TestAZNR005(t *testing.T) {
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/aznr005")
@@ -37,7 +44,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 	})
 
 	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/internal/services/cdn")
@@ -68,7 +75,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 	})
 
 	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/internal/services/cdn")
@@ -96,7 +103,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 	})
 
 	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/internal/services/cdnsections")
@@ -124,7 +131,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 	})
 
 	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/internal/services/cdnsections")
@@ -152,7 +159,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 	})
 
 	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/internal/services/cdnsections")

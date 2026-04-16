@@ -34,7 +34,9 @@ func TestMarkUntrackedFilesIncludesNewServiceFiles(t *testing.T) {
 		t.Fatalf("Chdir() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.Chdir(oldWD)
+		if err := os.Chdir(oldWD); err != nil {
+			t.Fatalf("Chdir() cleanup error = %v", err)
+		}
 	})
 
 	cs := NewChangeSet()

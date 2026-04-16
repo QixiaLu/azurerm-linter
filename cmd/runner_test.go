@@ -1,15 +1,21 @@
 package cmd
 
 import (
+	"go/token"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"go/token"
-
 	"github.com/qixialu/azurerm-linter/loader"
 	"github.com/qixialu/azurerm-linter/reporting"
 )
+
+func resetChangesForTest(t *testing.T) {
+	t.Helper()
+	if _, err := loader.LoadChanges(loader.LoaderOptions{NoFilter: true}); err != nil {
+		t.Fatalf("LoadChanges() cleanup error = %v", err)
+	}
+}
 
 func TestShouldKeepDiagnosticUsesMetadataBackedFiltering(t *testing.T) {
 	reporting.Reset()
@@ -33,7 +39,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 		reporting.Reset()
 	})
 
@@ -76,6 +82,67 @@ func TestShouldKeepDiagnosticDefaultsToTrueWithoutMetadata(t *testing.T) {
 	}
 }
 
+func TestShouldKeepDiagnosticUsesNewFileMetadata(t *testing.T) {
+	reporting.Reset()
+	diffPath := filepath.Join(t.TempDir(), "new_file.diff")
+	diff := `diff --git a/internal/services/cdn/new_resource.go b/internal/services/cdn/new_resource.go
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/internal/services/cdn/new_resource.go
+@@ -0,0 +1,3 @@
++package cdn
++
++func resource() {}
+`
+
+	if err := os.WriteFile(diffPath, []byte(diff), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if _, err := loader.LoadChanges(loader.LoaderOptions{DiffFile: diffPath}); err != nil {
+		t.Fatalf("LoadChanges() error = %v", err)
+	}
+	t.Cleanup(func() {
+		resetChangesForTest(t)
+		reporting.Reset()
+	})
+
+	file := filepath.Join("repo", "internal", "services", "cdn", "new_resource.go")
+	message := "AZNR001: schema fields are out of order\n"
+	reporting.Record(reporting.DiagnosticMeta{
+		PkgPath:       "github.com/qixialu/azurerm-linter/passes",
+		Message:       message,
+		ReportFile:    file,
+		ReportLine:    2,
+		ReportColumn:  1,
+		EvidenceFile:  file,
+		EvidenceLines: []int{2},
+		MatchMode:     reporting.MatchModeNewFile,
+	})
+
+	if !shouldKeepDiagnostic("github.com/qixialu/azurerm-linter/passes", token.Position{Filename: file, Line: 2, Column: 1}, message) {
+		t.Fatalf("shouldKeepDiagnostic() = false, want true for new-file metadata")
+	}
+
+	otherFile := filepath.Join("repo", "internal", "services", "cdn", "existing_resource.go")
+	otherMessage := "AZNR001: unchanged file\n"
+	reporting.Record(reporting.DiagnosticMeta{
+		PkgPath:       "github.com/qixialu/azurerm-linter/passes",
+		Message:       otherMessage,
+		ReportFile:    otherFile,
+		ReportLine:    2,
+		ReportColumn:  1,
+		EvidenceFile:  otherFile,
+		EvidenceLines: []int{2},
+		MatchMode:     reporting.MatchModeNewFile,
+	})
+
+	if shouldKeepDiagnostic("github.com/qixialu/azurerm-linter/passes", token.Position{Filename: otherFile, Line: 2, Column: 1}, otherMessage) {
+		t.Fatalf("shouldKeepDiagnostic() = true, want false for non-new file metadata")
+	}
+}
+
 func TestShouldKeepDiagnosticUsesExactAddedEvidenceLine(t *testing.T) {
 	reporting.Reset()
 	diffPath := filepath.Join(t.TempDir(), "added_line.diff")
@@ -96,7 +163,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 		reporting.Reset()
 	})
 
@@ -153,7 +220,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 		reporting.Reset()
 	})
 
@@ -213,7 +280,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 		reporting.Reset()
 	})
 
@@ -271,7 +338,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 		reporting.Reset()
 	})
 
@@ -310,7 +377,7 @@ index 1111111..2222222 100644
 		t.Fatalf("LoadChanges() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = loader.LoadChanges(loader.LoaderOptions{NoFilter: true})
+		resetChangesForTest(t)
 		reporting.Reset()
 	})
 

@@ -75,3 +75,12 @@ func invalidStandaloneCases() *schema.Schema {
 		Optional: true,
 	}
 }
+
+func ignoredStandaloneCase() *schema.Schema {
+	//lintignore:AZBP002
+	return &schema.Schema{
+		Type:     schema.TypeString,
+		Optional: true,
+		Computed: true,
+	}
+}

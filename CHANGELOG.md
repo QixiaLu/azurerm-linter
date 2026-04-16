@@ -6,10 +6,12 @@
 - Normalize retained upstream rule and loader behavior to the new metadata-based filtered-mode model instead of restoring the previous analyzer-local filtering semantics (#50)
 - Make diff filtering hunk-aware so structural diagnostics can survive deletion-only hunks when tied to changed evidence (#50)
 - Add diagnostic evidence metadata so filtering can distinguish report location from the lines that justify keeping a diagnostic (#50)
+- Move `AZNR001` onto metadata-backed new-file filtering so schema-order diagnostics stay scoped in filtered mode (#50)
 - Reduce false negatives in `AZNR005` when registration literals are assigned to local variables before being returned (#50)
 - Keep `AZNR005` whole-literal sorting validation so grouped registration blocks still report global ordering issues in filtered mode (#50)
 - Reduce false negatives in `AZBP008` and `AZSD003` when schema values are provided through local variable-backed composite literals (#50)
 - Restore `lintignore` support for `AZBP003`, `AZBP004`, `AZBP005`, and `AZRE001` (#50)
+- Keep `AZBP002` lintignore handling aligned with the metadata-based filtered-mode model after the `v0.1.9` rule-name fix (#50)
 - Restore local untracked service files in local git filtered mode (#50)
 
 ## v0.1.9 (2026-04-15)

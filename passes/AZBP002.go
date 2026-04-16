@@ -66,7 +66,7 @@ func runAZBP002(pass *analysis.Pass) (interface{}, error) {
 		schemaInfo := cached.Info
 		schemaLit := schemaInfo.AstCompositeLit
 
-		if ignorer.ShouldIgnore(azbp001Name, schemaInfo.AstCompositeLit) {
+		if ignorer.ShouldIgnore(azbp002Name, schemaInfo.AstCompositeLit) {
 			continue
 		}
 
