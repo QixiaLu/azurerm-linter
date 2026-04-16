@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.0 (2026-04-16)
 
 - Centralize filtered-mode diagnostic decisions in the runner instead of analyzer-local line gating (#50)
 - Normalize retained upstream rule and loader behavior to the new metadata-based filtered-mode model instead of restoring the previous analyzer-local filtering semantics (#50)
@@ -14,7 +14,7 @@
 - Keep `AZBP002` lintignore handling aligned with the metadata-based filtered-mode model after the `v0.1.9` rule-name fix (#50)
 - Restore local untracked service files in local git filtered mode (#50)
 - New rule `AZRN002` to check boolean property not starts with `is_` (#59)
-- Add .pre-commit-hooks.yaml
+- Add .pre-commit-hooks.yaml (#59)
 
 ## v0.1.9 (2026-04-15)
 
