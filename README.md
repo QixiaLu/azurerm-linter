@@ -44,6 +44,7 @@ For additional information about each check, see the documentation in passes's d
 | Check | Description |
 |-------|-------------|
 | AZRN001 | check for percentage properties use `_percentage` suffix instead of `_in_percent` |
+| AZRN002 | check that boolean property names do not start with `is_` |
 
 ### Azure Reference Error Checks
 

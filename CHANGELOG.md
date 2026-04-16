@@ -13,6 +13,8 @@
 - Restore `lintignore` support for `AZBP003`, `AZBP004`, `AZBP005`, and `AZRE001` (#50)
 - Keep `AZBP002` lintignore handling aligned with the metadata-based filtered-mode model after the `v0.1.9` rule-name fix (#50)
 - Restore local untracked service files in local git filtered mode (#50)
+- New rule `AZRN002` to check boolean property not starts with `is_` (#59)
+- Add .pre-commit-hooks.yaml
 
 ## v0.1.9 (2026-04-15)
 

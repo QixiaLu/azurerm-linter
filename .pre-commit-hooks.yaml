@@ -1,0 +1,7 @@
+- id: azurerm-linter
+  name: azurerm-linter
+  description: AzureRM Provider code linting tool. Only modified files are linted.
+  entry: azurerm-linter
+  language: golang
+  types: [go]
+  pass_filenames: false
