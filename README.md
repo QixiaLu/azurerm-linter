@@ -73,7 +73,7 @@ This tool must be compiled with the **same Go version** required by `terraform-p
 > ```
 > If you encounter this, rebuild from source with your current Go version:
 > ```bash
-> go install github.com/qixialu/azurerm-linter
+> go install github.com/qixialu/azurerm-linter@latest
 > ```
 
 **Windows users:** Enable long paths to avoid "Filename too long" errors when using `--pr`:
@@ -81,13 +81,13 @@ This tool must be compiled with the **same Go version** required by `terraform-p
 git config --global core.longpaths true
 ```
 
-### Build
+### Install
 
 ```bash
-go install github.com/qixialu/azurerm-linter
+go install github.com/qixialu/azurerm-linter@latest
 ```
 
-This will install the binary to your `$GOPATH/bin` (or `$HOME/go/bin` by default).
+This will install the binary to your `$GOPATH/bin` (or `$HOME/go/bin` by default). Make sure the latest version is installed to get the most up-to-date checks and enhancements.
 
 ## Usage
 
