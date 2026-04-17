@@ -77,6 +77,10 @@ func (l *WorktreeLoader) detectRemoteForPR() (string, error) {
 	return "", fmt.Errorf("no suitable remote found (origin or upstream)")
 }
 
+func (l *WorktreeLoader) fetchPRRefArgs() []string {
+	return []string{"fetch", l.remoteName, fmt.Sprintf("refs/pull/%d/head", l.prNumber)}
+}
+
 // Setup fetches the PR and creates a temporary worktree
 func (l *WorktreeLoader) Setup() (string, error) {
 	// 0. Verify we're in a git repository
@@ -101,10 +105,9 @@ func (l *WorktreeLoader) Setup() (string, error) {
 	}
 
 	// 3. Fetch the PR ref
-	prRef := fmt.Sprintf("refs/pull/%d/head", l.prNumber)
 	log.Printf("Fetching PR #%d from remote '%s' (%s/%s)...", l.prNumber, l.remoteName, l.owner, l.repo)
 
-	cmd := exec.Command("git", "fetch", "--depth=1", l.remoteName, prRef)
+	cmd := exec.Command("git", l.fetchPRRefArgs()...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch PR ref: %w\n%s", err, string(output))
