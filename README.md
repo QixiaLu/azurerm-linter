@@ -231,13 +231,15 @@ The JSON envelope has the following structure:
 
 ## Limitations
 
-Schema-related checks (e.g., AZNR002, AZSD001, AZSD002) analyze schemas defined as `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals returned from functions. This includes:
-- Direct returns: `return &map[string]*pluginsdk.Schema{...}`
-- Variable returns: `output := map[string]*pluginsdk.Schema{...}; return output` (captures initial `:=` definition only, ignoring subsequent `=` modifications)
-- Inline schema definitions: `return &pluginsdk.Schema{...}`
-- Cross-package function calls: Only `commonschema` package is currently supported (e.g., `commonschema.ResourceGroupName()`)
-- Same-package helper functions returning schemas
+- Schema-related checks (e.g., AZNR002, AZSD001, AZSD002) analyze schemas defined as `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals returned from functions. This includes:
+   - Direct returns: `return &map[string]*pluginsdk.Schema{...}`
+   - Variable returns: `output := map[string]*pluginsdk.Schema{...}; return output` (captures initial `:=` definition only, ignoring subsequent `=` modifications)
+   - Inline schema definitions: `return &pluginsdk.Schema{...}`
+   - Cross-package function calls: Only `commonschema` package is currently supported (e.g., `commonschema.ResourceGroupName()`)
+   - Same-package helper functions returning schemas
 
-Schemas defined in other ways (nested blocks) are excluded to reduce false positives from runtime modifications (e.g., conditional properties based on feature flags) that cannot be determined through static analysis.
+   Schemas defined in other ways (nested blocks) are excluded to reduce false positives from runtime modifications (e.g., conditional properties based on feature flags) that cannot be determined through static analysis.
+
+- In filtered mode, deletion-only changes (e.g., removing a `// lintignore:AZNR005` comment) may not surface diagnostics if the violation lines fall outside the diff hunk's context window. Use `--no-filter` to catch these cases.
 
 For detailed limitations of each analyzer, refer to the documentation in the respective analyzer files (e.g., `passes/AZNR002.go`).
