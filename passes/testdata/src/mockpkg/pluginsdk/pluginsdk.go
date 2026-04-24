@@ -19,3 +19,8 @@ type (
 	Schema       = schema.Schema
 	ResourceData = schema.ResourceData
 )
+
+// GetWriteOnly retrieves a write-only attribute value from the ResourceData.
+func GetWriteOnly(d *ResourceData, key string, valType interface{}) (interface{}, error) {
+	return d.Get(key), nil
+}

@@ -147,6 +147,11 @@ func findHandledPropertiesInUpdate(pass *analysis.Pass, resource *helper.TypedRe
 	// Pattern 3: ResourceData method calls (HasChange/HasChanges/Get)
 	traceResourceDataCalls(updateFuncBody, resource, handledProps)
 
+	// Pattern 4: If ResourceData is passed as argument to another function (e.g., pluginsdk.GetWriteOnly),
+	if hasResourceDataPassedAsArg(updateFuncBody, resource) {
+		return nil
+	}
+
 	return handledProps
 }
 
@@ -265,6 +270,37 @@ func traceResourceDataCalls(body *ast.BlockStmt, resource *helper.TypedResourceI
 		}
 		return true
 	})
+}
+
+// hasResourceDataPassedAsArg detects if ResourceData is passed as an argument to any function call.
+// This indicates the update logic may be delegated to an external function (e.g., pluginsdk.GetWriteOnly),
+// and we should skip property checking for this resource to avoid false positives.
+func hasResourceDataPassedAsArg(body *ast.BlockStmt, resource *helper.TypedResourceInfo) bool {
+	if body == nil || resource.TypesInfo == nil {
+		return false
+	}
+
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		for _, arg := range call.Args {
+			typ := resource.TypesInfo.TypeOf(arg)
+			if typ != nil && helper.IsTypeResourceData(typ) {
+				found = true
+				return false
+			}
+		}
+
+		return true
+	})
+	return found
 }
 
 // reportMissingProperties reports properties that are updatable but not handled
