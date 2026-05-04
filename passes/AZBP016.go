@@ -68,7 +68,10 @@ func runAZBP016(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		node := n.(*ast.CallExpr)
+		node, err := n.(*ast.CallExpr)
+		if err {
+			return
+		}
 		sel, ok := node.Fun.(*ast.SelectorExpr)
 		if !ok {
 			return
@@ -95,23 +98,4 @@ func runAZBP016(pass *analysis.Pass) (interface{}, error) {
 	})
 
 	return nil, nil
-}
-
-// isStateChangeConfLiteral checks if a composite literal is a StateChangeConf type.
-// It matches patterns like:
-//   - &pluginsdk.StateChangeConf{...}
-//   - &resource.StateChangeConf{...}
-//   - pluginsdk.StateChangeConf{...}
-//   - resource.StateChangeConf{...}
-func isStateChangeConfLiteral(lit *ast.CompositeLit) bool {
-	switch t := lit.Type.(type) {
-	case *ast.SelectorExpr:
-		return t.Sel.Name == "StateChangeConf"
-	case *ast.StarExpr:
-		// Handle *pluginsdk.StateChangeConf (unlikely as composite lit type, but check anyway)
-		if sel, ok := t.X.(*ast.SelectorExpr); ok {
-			return sel.Sel.Name == "StateChangeConf"
-		}
-	}
-	return false
 }
