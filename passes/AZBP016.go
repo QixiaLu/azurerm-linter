@@ -68,8 +68,8 @@ func runAZBP016(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		node, err := n.(*ast.CallExpr)
-		if err {
+		node, ok := n.(*ast.CallExpr)
+		if !ok {
 			return
 		}
 		sel, ok := node.Fun.(*ast.SelectorExpr)
