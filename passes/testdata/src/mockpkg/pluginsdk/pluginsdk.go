@@ -39,3 +39,8 @@ type StateRefreshFunc func() (interface{}, string, error)
 func (conf *StateChangeConf) WaitForStateContext(ctx context.Context) (interface{}, error) {
 	return nil, nil
 }
+
+// GetWriteOnly retrieves a write-only attribute value from the ResourceData.
+func GetWriteOnly(d *ResourceData, key string, valType interface{}) (interface{}, error) {
+	return d.Get(key), nil
+}

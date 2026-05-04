@@ -73,7 +73,7 @@ This tool must be compiled with the **same Go version** required by `terraform-p
 > ```
 > If you encounter this, rebuild from source with your current Go version:
 > ```bash
-> go install github.com/qixialu/azurerm-linter
+> go install github.com/qixialu/azurerm-linter@latest
 > ```
 
 **Windows users:** Enable long paths to avoid "Filename too long" errors when using `--pr`:
@@ -81,13 +81,13 @@ This tool must be compiled with the **same Go version** required by `terraform-p
 git config --global core.longpaths true
 ```
 
-### Build
+### Install
 
 ```bash
-go install github.com/qixialu/azurerm-linter
+go install github.com/qixialu/azurerm-linter@latest
 ```
 
-This will install the binary to your `$GOPATH/bin` (or `$HOME/go/bin` by default).
+This will install the binary to your `$GOPATH/bin` (or `$HOME/go/bin` by default). Make sure the latest version is installed to get the most up-to-date checks and enhancements.
 
 ## Usage
 
@@ -231,13 +231,15 @@ The JSON envelope has the following structure:
 
 ## Limitations
 
-Schema-related checks (e.g., AZNR002, AZSD001, AZSD002) analyze schemas defined as `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals returned from functions. This includes:
-- Direct returns: `return &map[string]*pluginsdk.Schema{...}`
-- Variable returns: `output := map[string]*pluginsdk.Schema{...}; return output` (captures initial `:=` definition only, ignoring subsequent `=` modifications)
-- Inline schema definitions: `return &pluginsdk.Schema{...}`
-- Cross-package function calls: Only `commonschema` package is currently supported (e.g., `commonschema.ResourceGroupName()`)
-- Same-package helper functions returning schemas
+- Schema-related checks (e.g., AZNR002, AZSD001, AZSD002) analyze schemas defined as `map[string]*pluginsdk.Schema` or `map[string]*schema.Schema` composite literals returned from functions. This includes:
+   - Direct returns: `return &map[string]*pluginsdk.Schema{...}`
+   - Variable returns: `output := map[string]*pluginsdk.Schema{...}; return output` (captures initial `:=` definition only, ignoring subsequent `=` modifications)
+   - Inline schema definitions: `return &pluginsdk.Schema{...}`
+   - Cross-package function calls: Only `commonschema` package is currently supported (e.g., `commonschema.ResourceGroupName()`)
+   - Same-package helper functions returning schemas
 
-Schemas defined in other ways (nested blocks) are excluded to reduce false positives from runtime modifications (e.g., conditional properties based on feature flags) that cannot be determined through static analysis.
+   Schemas defined in other ways (nested blocks) are excluded to reduce false positives from runtime modifications (e.g., conditional properties based on feature flags) that cannot be determined through static analysis.
+
+- In filtered mode, deletion-only changes (e.g., removing a `// lintignore:AZNR005` comment) may not surface diagnostics if the violation lines fall outside the diff hunk's context window. Use `--no-filter` to catch these cases.
 
 For detailed limitations of each analyzer, refer to the documentation in the respective analyzer files (e.g., `passes/AZNR002.go`).
