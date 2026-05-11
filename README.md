@@ -25,6 +25,7 @@ For additional information about each check, see the documentation in passes's d
 | AZBP013 | check for chained nil checks that should be split into separate if statements |
 | AZBP014 | check for empty `OperationOptions` literals when a `Default*` constructor exists |
 | AZBP015 (DEPRECATED) | check that `check.That().Key().HasValue()` is unnecessary when `ImportStep` is used |
+| AZBP016 | check for usage of `WaitForStateContext` instead of custom pollers |
 
 ### Azure New Resource Checks
 
@@ -38,6 +39,7 @@ For additional information about each check, see the documentation in passes's d
 | AZNR006 | check that nil checks are performed inside `flatten*` methods |
 | AZNR007 (DEPRECATED) | check that resource names in test configurations start with `"acctest"` |
 | AZNR008 | check for hardcoded resource IDs in test configurations |
+| AZNR009 | check that API response IDs are parsed before assigning to state |
 
 ### Azure Naming Rule Checks
 
@@ -45,6 +47,7 @@ For additional information about each check, see the documentation in passes's d
 |-------|-------------|
 | AZRN001 | check for percentage properties use `_percentage` suffix instead of `_in_percent` |
 | AZRN002 | check that boolean property names do not start with `is_` |
+| AZRN003 | check that property names use non-abbreviated forms |
 
 ### Azure Reference Error Checks
 
