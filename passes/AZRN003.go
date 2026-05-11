@@ -50,6 +50,7 @@ var abbreviations = map[string]string{
 	"vmss": "virtual_machine_scale_set",
 	"vnet": "virtual_network",
 	"rg":   "resource_group",
+	"auth": "authorization",
 }
 
 // suffixAbbreviations maps abbreviated suffixes (including underscore prefix) to their full forms.
@@ -78,7 +79,7 @@ func runAZRN003(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		abbreviation, expansion := findAbbreviation(fieldName)
+		abbreviation := findAbbreviation(fieldName)
 		if abbreviation == "" {
 			continue
 		}
@@ -94,10 +95,10 @@ func runAZRN003(pass *analysis.Pass) (interface{}, error) {
 			EvidenceFile:  pos.Filename,
 			EvidenceLines: []int{pos.Line},
 			MatchMode:     reporting.MatchModeExactAdded,
-		}, "%s: field %q contains abbreviation %s, use non-abbreviated form %s\n",
+		}, "%s: field %q contains %s, use %s\n",
 			azrn003Name, fieldName,
-			helper.IssueLine(fmt.Sprintf("'%s'", abbreviation)),
-			helper.FixedCode(expansion))
+			helper.IssueLine(fmt.Sprintf("abbreviation '%s'", abbreviation)),
+			helper.FixedCode("non-abbreviated form"))
 	}
 
 	return nil, nil
@@ -105,12 +106,12 @@ func runAZRN003(pass *analysis.Pass) (interface{}, error) {
 
 // findAbbreviation checks if the field name contains any known abbreviation.
 // Returns the matched abbreviation and its expansion, or empty strings if none found.
-func findAbbreviation(fieldName string) (string, string) {
+func findAbbreviation(fieldName string) string {
 	for suffix, expansion := range suffixAbbreviations {
 		if strings.HasSuffix(fieldName, suffix) {
 			// Make sure it's not already in the expanded form
 			if !strings.HasSuffix(fieldName, expansion) {
-				return suffix, expansion
+				return suffix
 			}
 		}
 	}
@@ -118,10 +119,10 @@ func findAbbreviation(fieldName string) (string, string) {
 	// Check segment-based abbreviations
 	segments := strings.Split(fieldName, "_")
 	for _, segment := range segments {
-		if expansion, ok := abbreviations[segment]; ok {
-			return segment, expansion
+		if _, ok := abbreviations[segment]; ok {
+			return segment
 		}
 	}
 
-	return "", ""
+	return ""
 }
