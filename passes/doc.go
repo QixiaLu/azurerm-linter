@@ -337,4 +337,55 @@
 //	func (r AIServices) flattenNetworkACLs(input *NetworkRuleSet) []NetworkACLs {
 //	    // ...
 //	}
+//
+// # AZNR009 - Parse API Response IDs
+//
+// Reports when API response ID fields are directly assigned to model state fields
+// in Read functions of typed resources without being parsed first.
+// IDs from API responses should be parsed using ParseXxxID() to avoid
+// state inconsistencies caused by differing casing from the API.
+//
+// Reference: https://github.com/hashicorp/terraform-provider-azurerm/pull/30128#discussion_r2204001130
+//
+// Flagged:
+//
+//	state.WebApplicationFirewallPolicyId = wafPolicy.Id
+//
+//	state := SecurityPoliciesModel{
+//	    WebApplicationFirewallPolicyId: wafPolicy.Id,
+//	}
+//
+// Correct:
+//
+//	parsedId, err := webapplicationfirewallpolicies.ParseApplicationGatewayWebApplicationFirewallPolicyID(wafPolicy.Id)
+//	if err != nil {
+//	    return err
+//	}
+//	state.WebApplicationFirewallPolicyId = parsedId.ID()
+//
+// # AZBP016 - Prefer Custom Pollers over WaitForStateContext
+//
+// Reports when code calls WaitForStateContext.
+// Going forward, the provider prefers custom pollers that implement the
+// pollers.PollerType interface instead of using the legacy StateChangeConf pattern.
+//
+// Reference: https://github.com/hashicorp/terraform-provider-azurerm/pull/30066
+//
+// Flagged:
+//
+//	stateConf := &pluginsdk.StateChangeConf{
+//	    Pending: []string{"Creating"},
+//	    Target:  []string{"Created"},
+//	    Refresh: refreshFunc,
+//	    Timeout: 10 * time.Minute,
+//	}
+//	result, err := stateConf.WaitForStateContext(ctx)
+//
+// Correct:
+//
+//	pollerType := custompollers.NewMyCustomPoller(...)
+//	poller := pollers.NewPoller(pollerType, 10*time.Second, pollers.DefaultNumberOfDroppedConnectionsToAllow)
+//	if err := poller.PollUntilDone(ctx); err != nil {
+//	    return err
+//	}
 package passes
