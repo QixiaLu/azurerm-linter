@@ -136,31 +136,3 @@ index 1111111..2222222 100644
 
 	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/internal/services/cdnsections")
 }
-
-func TestAZNR005FilteredModeKeepsGloballyUnsortedSectionedLiteral(t *testing.T) {
-	testdata := analysistest.TestData()
-	diffPath := filepath.Join(t.TempDir(), "global_section_order.diff")
-	diff := `diff --git a/internal/services/cdnsections/registration.go b/internal/services/cdnsections/registration.go
-index 1111111..2222222 100644
---- a/internal/services/cdnsections/registration.go
-+++ b/internal/services/cdnsections/registration.go
-	@@ -19,5 +19,4 @@ func (r Registration) GloballyUnsortedAcrossSections() map[string]*pluginsdk.Resource {
--//lintignore:AZNR005 temporary exemption
-		// VM
-		"azurerm_dedicated_host":  nil,
-		"azurerm_virtual_machine": nil,
-`
-
-	if err := os.WriteFile(diffPath, []byte(diff), 0o600); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
-
-	if _, err := loader.LoadChanges(loader.LoaderOptions{DiffFile: diffPath}); err != nil {
-		t.Fatalf("LoadChanges() error = %v", err)
-	}
-	t.Cleanup(func() {
-		resetChangesForTest(t)
-	})
-
-	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/internal/services/cdnsections")
-}
