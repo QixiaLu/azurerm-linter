@@ -136,5 +136,3 @@ index 1111111..2222222 100644
 
 	analysistest.Run(t, testdata, passes.AZNR005Analyzer, "testdata/src/internal/services/cdnsections")
 }
-
-
