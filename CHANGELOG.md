@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.3 (2026-05-12)
+
+- New rule `AZNR009`: check that API response IDs are parsed before assigning to state
+- New rule `AZRN003`: check that property names use non-abbreviated forms
+- New rule `AZBP016`: check for usage of `WaitForStateContext` instead of custom pollers
+- Improve `AZNR005` to validate sort order per section separated by blank lines
+
 ## v0.2.0 (2026-04-16)
 
 - Centralize filtered-mode diagnostic decisions in the runner instead of analyzer-local line gating (#50)
