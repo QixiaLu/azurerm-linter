@@ -19,7 +19,7 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 }
 
 func (r Registration) GloballyUnsortedAcrossSections() map[string]*pluginsdk.Resource {
-	resources := map[string]*pluginsdk.Resource{ // want `AZNR005`
+	resources := map[string]*pluginsdk.Resource{
 		// VM
 		"azurerm_dedicated_host":  nil,
 		"azurerm_virtual_machine": nil,

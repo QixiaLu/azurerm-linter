@@ -23,6 +23,10 @@ const AZNR005Doc = `check for alphabetically sorted registration map and slice e
 Registration methods in registration.go files should have their map entries and slice entries
 sorted alphabetically for better maintainability and consistency.
 
+When entries are grouped into sections separated by blank lines (often with comment
+headers), sorting is validated within each section independently rather than across
+the entire literal.
+
 Example violations:
 func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 	return map[string]*pluginsdk.Resource{
@@ -43,6 +47,17 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 	return map[string]*pluginsdk.Resource{
 		"azurerm_availability_set": nil,
 		"azurerm_managed_disk":     nil,
+	}
+}
+
+func (r Registration) SectionedResources() map[string]*pluginsdk.Resource {
+	return map[string]*pluginsdk.Resource{
+		// CDN
+		"azurerm_cdn_profile": nil,
+
+		// FrontDoor
+		"azurerm_cdn_frontdoor_custom_domain": nil,
+		"azurerm_cdn_frontdoor_profile":       nil,
 	}
 }
 
@@ -234,7 +249,34 @@ func objectForIdent(pass *analysis.Pass, ident *ast.Ident) types.Object {
 	return pass.TypesInfo.Uses[ident]
 }
 
-// validateSorting examines composite literals for sorting violations
+// splitIntoSections groups composite-literal elements into sections separated
+// by blank lines.  A blank line is detected when the gap between the end of one
+// element and the start of the next is greater than one source line.
+func splitIntoSections(fset *token.FileSet, elts []ast.Expr) [][]ast.Expr {
+	if len(elts) == 0 {
+		return nil
+	}
+
+	var sections [][]ast.Expr
+	current := []ast.Expr{elts[0]}
+
+	for i := 1; i < len(elts); i++ {
+		prevEnd := fset.Position(elts[i-1].End()).Line
+		currStart := fset.Position(elts[i].Pos()).Line
+		if currStart-prevEnd > 1 {
+			sections = append(sections, current)
+			current = []ast.Expr{elts[i]}
+		} else {
+			current = append(current, elts[i])
+		}
+	}
+
+	return append(sections, current)
+}
+
+// validateSorting examines composite literals for sorting violations.
+// When a composite literal contains sections separated by blank lines, each
+// section is validated independently.
 func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) bool {
 	if compositeLit.Type == nil {
 		return false
@@ -255,21 +297,30 @@ func validateSorting(pass *analysis.Pass, compositeLit *ast.CompositeLit) bool {
 		return false
 	}
 
-	var registrations []string
-	if isMap {
-		registrations = extractRegistrationMapKeys(compositeLit.Elts)
-	} else if isSlice {
-		registrations = extractRegistrationResourceNames(compositeLit.Elts)
+	sections := splitIntoSections(pass.Fset, compositeLit.Elts)
+
+	var evidenceLines []int
+	anyUnsorted := false
+
+	for _, section := range sections {
+		var names []string
+		if isMap {
+			names = extractRegistrationMapKeys(section)
+		} else if isSlice {
+			names = extractRegistrationResourceNames(section)
+		}
+
+		if !sort.StringsAreSorted(names) {
+			anyUnsorted = true
+			for _, elt := range section {
+				pos := pass.Fset.Position(elt.Pos())
+				evidenceLines = append(evidenceLines, pos.Line)
+			}
+		}
 	}
 
-	if sort.StringsAreSorted(registrations) {
+	if !anyUnsorted {
 		return false
-	}
-
-	evidenceLines := make([]int, 0, len(compositeLit.Elts))
-	for _, elt := range compositeLit.Elts {
-		pos := pass.Fset.Position(elt.Pos())
-		evidenceLines = append(evidenceLines, pos.Line)
 	}
 
 	reporting.Report(pass, reporting.ReportOptions{

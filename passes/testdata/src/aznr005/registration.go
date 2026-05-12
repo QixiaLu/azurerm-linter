@@ -46,7 +46,7 @@ func (r Registration) InvalidSupportedResourcesViaVariable() map[string]*plugins
 }
 
 func (r Registration) SectionedDataSources() map[string]*pluginsdk.Resource {
-	return map[string]*pluginsdk.Resource{ // want `AZNR005`
+	return map[string]*pluginsdk.Resource{
 		// CDN
 		"azurerm_cdn_profile": nil,
 
