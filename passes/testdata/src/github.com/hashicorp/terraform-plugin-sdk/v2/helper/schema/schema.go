@@ -41,6 +41,7 @@ type Schema struct {
 	ForceNew      bool
 	Sensitive     bool
 	Default       interface{}
+	Description   string
 	MaxItems      int
 	Elem          interface{}
 	ValidateFunc  SchemaValidateFunc
