@@ -66,11 +66,11 @@ func runAZNR010(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 			reporting.Reportf(pass, reporting.ReportOptions{
-				Rule: aznr010Name,
-				ReportPos: schemaLit.Pos(),
-				EvidenceFile: pos.Filename,
+				Rule:          aznr010Name,
+				ReportPos:     schemaLit.Pos(),
+				EvidenceFile:  pos.Filename,
 				EvidenceLines: []int{pos.Line},
-				MatchMode: reporting.MatchModeExactAdded,
+				MatchMode:     reporting.MatchModeExactAdded,
 			}, "%s: %s is redundant\n", aznr010Name, helper.ItalicCode("Description"))
 		}
 	}
