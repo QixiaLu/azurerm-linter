@@ -40,6 +40,7 @@ For additional information about each check, see the documentation in passes's d
 | AZNR007 (DEPRECATED) | check that resource names in test configurations start with `"acctest"` |
 | AZNR008 | check for hardcoded resource IDs in test configurations |
 | AZNR009 | check that API response IDs are parsed before assigning to state |
+| AZNR010 | check that schema fields do not have redundant `Description` |
 
 ### Azure Naming Rule Checks
 
@@ -63,6 +64,7 @@ For additional information about each check, see the documentation in passes's d
 | AZSD002 | check for `AtLeastOneOf` or `ExactlyOneOf` validation on TypeList fields with all optional nested fields |
 | AZSD003 | check for redundant use of both `ExactlyOneOf` and `ConflictsWith` |
 | AZSD004 | check for `computed` attributes should only have computed-only nested schema |
+| AZSD005 | check that `None` enum values are not listed in `StringInSlice` validation |
 
 ## Installation
 

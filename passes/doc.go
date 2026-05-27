@@ -363,6 +363,55 @@
 //	}
 //	state.WebApplicationFirewallPolicyId = parsedId.ID()
 //
+// # AZNR010 - Redundant Description Field
+//
+// Reports when schema fields declare a Description field.
+// In the AzureRM provider, descriptions are generated from documentation
+// and should not be specified inline in schema definitions.
+//
+// Flagged:
+//
+//	"name": {
+//	    Type:        pluginsdk.TypeString,
+//	    Required:    true,
+//	    Description: "The name of the resource.",
+//	}
+//
+// Correct:
+//
+//	"name": {
+//	    Type:     pluginsdk.TypeString,
+//	    Required: true,
+//	}
+//
+// # AZSD005 - None Values Should Not Be Listed in StringInSlice
+//
+// Reports when validation.StringInSlice includes a "None" enum value from the
+// Azure SDK. Terraform has its own null type (field omission), making "None"
+// superfluous. The provider is moving away from this pattern and existing
+// "None" values are planned for removal in version 4.0.
+//
+// This applies both to manually listed enum constants and to PossibleValuesFor*
+// functions whose enum type includes a "None" constant.
+//
+// Reference: https://azure.github.io/Azure-Verified-Modules/contributing/terraform/
+//
+// Flagged:
+//
+//	ValidateFunc: validation.StringInSlice([]string{
+//	    string(labplan.ShutdownOnIdleModeNone),
+//	    string(labplan.ShutdownOnIdleModeUserAbsence),
+//	    string(labplan.ShutdownOnIdleModeLowUsage),
+//	}, false)
+//
+// Correct:
+//
+//	ValidateFunc: validation.StringInSlice([]string{
+//	    string(labplan.ShutdownOnIdleModeUserAbsence),
+//	    string(labplan.ShutdownOnIdleModeLowUsage),
+//	    // Note: Whilst the `None` value exists it's handled in the Create/Update and Read functions.
+//	}, false)
+//
 // # AZBP016 - Prefer Custom Pollers over WaitForStateContext
 //
 // Reports when code calls WaitForStateContext.
