@@ -17,10 +17,10 @@ func validCases() map[string]*schema.Schema {
 
 func invalidCases() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		"name": { // want `AZNR010`
+		"name": {
 			Type:         schema.TypeString,
 			Required:     true,
-			Description:  "The name of the resource.",
+			Description:  "The name of the resource.", // want `AZNR010`
 			ValidateFunc: validation.StringIsNotEmpty,
 		},
 	}

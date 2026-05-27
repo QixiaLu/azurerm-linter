@@ -1,10 +1,9 @@
 # Changelog
 
-## v0.2.4 (2026-05-xx)
+## v0.2.4 (2026-05-27)
 
 - New rule `AZSD005`: check that `None` enum values are not listed in `StringInSlice` validation
 - New rule `AZNR010`: check that schema fields do not have redundant `Description`
-
 
 ## v0.2.3 (2026-05-12)
 

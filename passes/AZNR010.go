@@ -51,28 +51,28 @@ func runAZNR010(pass *analysis.Pass) (interface{}, error) {
 
 	for _, cached := range schemaInfoList {
 		schemaInfo := cached.Info
-		schemaLit := schemaInfo.AstCompositeLit
 
 		if ignorer.ShouldIgnore(aznr010Name, schemaInfo.AstCompositeLit) {
 			continue
 		}
 
 		// Check if description exists
-		hasDescription := schemaInfo.DeclaresField(schema.SchemaFieldDescription)
-
-		if hasDescription {
-			pos := pass.Fset.Position(schemaLit.Pos())
-			if !loader.IsFileChanged(pos.Filename) {
-				continue
-			}
-			reporting.Reportf(pass, reporting.ReportOptions{
-				Rule:          aznr010Name,
-				ReportPos:     schemaLit.Pos(),
-				EvidenceFile:  pos.Filename,
-				EvidenceLines: []int{pos.Line},
-				MatchMode:     reporting.MatchModeExactAdded,
-			}, "%s: %s is redundant\n", aznr010Name, helper.ItalicCode("Description"))
+		descriptionKV := schemaInfo.Fields[schema.SchemaFieldDescription]
+		if descriptionKV == nil {
+			continue
 		}
+
+		pos := pass.Fset.Position(descriptionKV.Pos())
+		if !loader.IsFileChanged(pos.Filename) {
+			continue
+		}
+		reporting.Reportf(pass, reporting.ReportOptions{
+			Rule:          aznr010Name,
+			ReportPos:     descriptionKV.Pos(),
+			EvidenceFile:  pos.Filename,
+			EvidenceLines: []int{pos.Line},
+			MatchMode:     reporting.MatchModeExactAdded,
+		}, "%s: %s is redundant\n", aznr010Name, helper.ItalicCode("Description"))
 	}
 
 	return nil, nil

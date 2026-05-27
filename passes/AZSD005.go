@@ -140,7 +140,7 @@ func runAZSD005(pass *analysis.Pass) (interface{}, error) {
 		enumTypeName := strings.TrimPrefix(funcName, "PossibleValuesFor")
 
 		// Check if any constant of this enum type has value "None"
-		if hasNoneConstant(funcPkg, enumTypeName) {
+		if hasNoneConstant(pass, funcPkg, enumTypeName) {
 			pos := pass.Fset.Position(call.Pos())
 			if !loader.IsFileChanged(pos.Filename) {
 				continue
@@ -214,7 +214,7 @@ func findNoneConstantsInCompositeLit(pass *analysis.Pass, compLit *ast.Composite
 
 // hasNoneConstant checks if a package has any constant of the given enum type
 // whose string value is "None" (case-insensitive).
-func hasNoneConstant(pkg *types.Package, enumTypeName string) bool {
+func hasNoneConstant(pass *analysis.Pass, pkg *types.Package, enumTypeName string) bool {
 	scope := pkg.Scope()
 	if scope == nil {
 		return false
@@ -231,6 +231,11 @@ func hasNoneConstant(pkg *types.Package, enumTypeName string) bool {
 	}
 	named, ok := typeName.Type().(*types.Named)
 	if !ok {
+		return false
+	}
+
+	// Verify this is an Azure SDK enum type
+	if !helper.IsAzureSDKEnumType(pass, named) {
 		return false
 	}
 
