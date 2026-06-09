@@ -87,11 +87,26 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 		schemaInfoByLit[cached.Info.AstCompositeLit] = cached
 	}
 
+	var standaloneLits []*ast.CompositeLit
+	for _, cached := range schemaInfoList {
+		if cached.PropertyName == "" {
+			standaloneLits = append(standaloneLits, cached.Info.AstCompositeLit)
+		}
+	}
+
 	for _, cached := range schemaInfoList {
 		schemaInfo := cached.Info
 		schemaLit := schemaInfo.AstCompositeLit
 
 		if ignorer.ShouldIgnore(azsd002Name, schemaLit) {
+			continue
+		}
+
+		// Skip standalone schemas and anything nested inside one. The schema path
+		// required by AtLeastOneOf / ExactlyOneOf depends on where the standalone
+		// schema is mounted, so the suggested fix is not expressible here (and the
+		// helper may be reused inside repeatable parent blocks).
+		if cached.PropertyName == "" || isInsideAny(schemaLit, standaloneLits) {
 			continue
 		}
 
@@ -198,4 +213,16 @@ func runAZSD002(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	return nil, nil
+}
+
+// isInsideAny returns true if node is positioned strictly within any of the
+// given composite literals (i.e. it is a descendant, not the literal itself).
+func isInsideAny(node ast.Node, lits []*ast.CompositeLit) bool {
+	p := node.Pos()
+	for _, lit := range lits {
+		if p > lit.Pos() && p < lit.End() {
+			return true
+		}
+	}
+	return false
 }
