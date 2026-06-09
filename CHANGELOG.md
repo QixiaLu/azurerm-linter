@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.2.5 (2026-06-09)
+
+- Improve `AZSD002` by skipping standalone sub-schemas (returned from helper functions or assigned to variables) and any schema nested within them, where the `AtLeastOneOf` / `ExactlyOneOf` fix is not expressible because the schema path depends on where the sub-schema is mounted
+
 ## v0.2.4 (2026-05-27)
 
 - New rule `AZSD005`: check that `None` enum values are not listed in `StringInSlice` validation
