@@ -32,7 +32,9 @@ Valid usage:
       Optional: true,
       // NOTE: O+C - field can be set by user or computed from API when not provided
       Computed: true,
-  }`
+  }
+
+Exceptions: change field ordering for an existing resource in a follow-up PR to reduce scope and improve diff readability`
 
 const azbp002Name = "AZBP002"
 

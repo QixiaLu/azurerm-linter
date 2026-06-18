@@ -29,7 +29,10 @@ Schema fields should be ordered as follows:
 4. Computed fields, sorted alphabetically (with 'location' first if computed)
 5. 'tags' field must be at the end
 
+Exceptions: change field ordering for an existing resource in a follow-up PR to reduce scope and improve diff readability
+
 Special cases:
+
 - Schemas with 'name' field which is optional are skipped
 - If optional fields appear before required fields, their original order is preserved
   (This happens when some resources have optional fields as part of the resource ID components)
