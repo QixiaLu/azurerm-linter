@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.2.6 (2026-07-03)
+
+- Deprecate `AZBP011`, `AZBP012`, `AZBP013`, `AZBP014`, `AZNR008`, and `AZSD001` due to low signal, style-only enforcement, or false positives
+
 ## v0.2.5 (2026-06-09)
 
 - Improve `AZSD002` by skipping standalone sub-schemas (returned from helper functions or assigned to variables) and any schema nested within them, where the `AtLeastOneOf` / `ExactlyOneOf` fix is not expressible because the schema path depends on where the sub-schema is mounted
