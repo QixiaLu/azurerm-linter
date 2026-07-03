@@ -20,10 +20,10 @@ For additional information about each check, see the documentation in passes's d
 | AZBP008 | check for `ValidateFunc` uses `PossibleValuesFor*` instead of manual enum listing |
 | AZBP009 | check for variables that use the same name as an imported package |
 | AZBP010 | check for variables that are declared and immediately returned |
-| AZBP011 | check for `strings.EqualFold` usage in enum comparisons |
-| AZBP012 | check for unnecessary else blocks that can be avoided by setting a default |
-| AZBP013 | check for chained nil checks that should be split into separate if statements |
-| AZBP014 | check for empty `OperationOptions` literals when a `Default*` constructor exists |
+| AZBP011 (DEPRECATED) | check for `strings.EqualFold` usage in enum comparisons |
+| AZBP012 (DEPRECATED) | check for unnecessary else blocks that can be avoided by setting a default |
+| AZBP013 (DEPRECATED) | check for chained nil checks that should be split into separate if statements |
+| AZBP014 (DEPRECATED) | check for empty `OperationOptions` literals when a `Default*` constructor exists |
 | AZBP015 (DEPRECATED) | check that `check.That().Key().HasValue()` is unnecessary when `ImportStep` is used |
 | AZBP016 | check for usage of `WaitForStateContext` instead of custom pollers |
 
@@ -38,7 +38,7 @@ For additional information about each check, see the documentation in passes's d
 | AZNR005 | check for registrations are sorted alphabetically |
 | AZNR006 | check that nil checks are performed inside `flatten*` methods |
 | AZNR007 (DEPRECATED) | check that resource names in test configurations start with `"acctest"` |
-| AZNR008 | check for hardcoded resource IDs in test configurations |
+| AZNR008 (DEPRECATED) | check for hardcoded resource IDs in test configurations |
 | AZNR009 | check that API response IDs are parsed before assigning to state |
 | AZNR010 | check that schema fields do not have redundant `Description` |
 
@@ -60,7 +60,7 @@ For additional information about each check, see the documentation in passes's d
 
 | Check | Description |
 |-------|-------------|
-| AZSD001 | check for `MaxItems:1` blocks with single property should be flattened |
+| AZSD001 (DEPRECATED) | check for `MaxItems:1` blocks with single property should be flattened |
 | AZSD002 | check for `AtLeastOneOf` or `ExactlyOneOf` validation on TypeList fields with all optional nested fields |
 | AZSD003 | check for redundant use of both `ExactlyOneOf` and `ConflictsWith` |
 | AZSD004 | check for `computed` attributes should only have computed-only nested schema |
