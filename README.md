@@ -18,7 +18,7 @@ For additional information about each check, see the documentation in passes's d
 | AZBP006 | check for redundant `nil` assignments to pointer fields in struct literals |
 | AZBP007 | check for string slices initialized using `make([]string, 0)` instead of `[]string{}` |
 | AZBP008 | check for `ValidateFunc` uses `PossibleValuesFor*` instead of manual enum listing |
-| AZBP009 | check for variables that use the same name as an imported package |
+| AZBP009 (DEPRECATED) | check for variables that use the same name as an imported package |
 | AZBP010 | check for variables that are declared and immediately returned |
 | AZBP011 (DEPRECATED) | check for `strings.EqualFold` usage in enum comparisons |
 | AZBP012 (DEPRECATED) | check for unnecessary else blocks that can be avoided by setting a default |

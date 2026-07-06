@@ -1,8 +1,8 @@
 # Changelog
 
-## v0.2.6 (2026-07-03)
+## v0.2.6 (2026-07-06)
 
-- Deprecate `AZBP011`, `AZBP012`, `AZBP013`, `AZBP014`, `AZNR008`, `AZSD001`, and `AZSD003` due to low signal, style-only enforcement, or false positives
+- Deprecate `AZBP009`, `AZBP011`, `AZBP012`, `AZBP013`, `AZBP014`, `AZNR008`, `AZSD001`, and `AZSD003` due to low signal, style-only enforcement, or false positives
 
 ## v0.2.5 (2026-06-09)
 
