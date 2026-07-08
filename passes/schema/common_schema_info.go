@@ -133,10 +133,7 @@ func loadSchemaInfo(pass *analysis.Pass) *CommonSchemaInfo {
 		return info
 	}
 
-	cfg := &packages.Config{
-		Mode: packages.LoadAllSyntax,
-		Dir:  vendorPath,
-	}
+	cfg := helper.NewPackageLoadConfig(vendorPath, false)
 
 	// Load commonschema package from vendor
 	pkgs, err := packages.Load(cfg, "./...")

@@ -1,6 +1,6 @@
 module github.com/qixialu/azurerm-linter
 
-go 1.25.3
+go 1.26.3
 
 require (
 	github.com/bflad/tfproviderlint v0.31.0
